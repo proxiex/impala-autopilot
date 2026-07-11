@@ -26,6 +26,8 @@ export interface AgentOptions {
   history?: ChatCompletionMessageParam[];
   onEvent?: EventHook;
   approver?: Approver;
+  /** Extra situational context appended to the system prompt (e.g. currency). */
+  systemContext?: string;
 }
 
 export interface AgentResult {
@@ -40,10 +42,14 @@ export async function runAgent(
   userMessage: string,
   options: AgentOptions = {},
 ): Promise<AgentResult> {
-  const { history = [], onEvent, approver } = options;
+  const { history = [], onEvent, approver, systemContext } = options;
+
+  const systemContent = systemContext
+    ? `${SYSTEM_PROMPT}\n\n${systemContext}`
+    : SYSTEM_PROMPT;
 
   const messages: ChatCompletionMessageParam[] = [
-    { role: "system", content: SYSTEM_PROMPT },
+    { role: "system", content: systemContent },
     ...history,
     { role: "user", content: userMessage },
   ];

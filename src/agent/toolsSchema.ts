@@ -84,11 +84,19 @@ export const TOOLS: Tool[] = [
           },
           currency: {
             type: "string",
-            description: "Currency code, e.g. NGN, KES, GHS. Defaults to NGN.",
+            description:
+              "Only set if the customer explicitly names a currency; otherwise " +
+              "omit and the store's default currency is used.",
           },
           due_in_days: {
             type: "integer",
             description: "Days until the invoice is due (default 7).",
+          },
+          send: {
+            type: "boolean",
+            description:
+              "Send the invoice to the customer now (default true). Set false " +
+              "to only save a draft for the merchant to review.",
           },
           note: { type: "string" },
         },

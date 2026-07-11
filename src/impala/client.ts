@@ -27,6 +27,8 @@ export class ImpalaFlowClient {
   refreshToken: string | null = null;
   tenantId: string | null;
   user: Record<string, any> = {};
+  /** The tenant's default invoice currency (e.g. GHS), fetched lazily. */
+  defaultCurrency: string | null = null;
 
   constructor(settings: Settings) {
     this.baseUrl = settings.impalaflowBaseUrl.replace(/\/+$/, "");
@@ -131,5 +133,18 @@ export class ImpalaFlowClient {
 
   post(path: string, json?: unknown): Promise<any> {
     return this.request("POST", path, { json });
+  }
+
+  /** Fetch and cache the tenant's default invoice currency. */
+  async fetchDefaultCurrency(): Promise<string | null> {
+    try {
+      const settings = await this.get(
+        "/api/private/tenants/invoicing/settings/default",
+      );
+      this.defaultCurrency = settings?.default_currency ?? null;
+    } catch {
+      this.defaultCurrency = null;
+    }
+    return this.defaultCurrency;
   }
 }

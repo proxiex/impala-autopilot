@@ -79,6 +79,8 @@ export interface CreateInvoiceArgs {
   currency?: string;
   due_in_days?: number;
   note?: string;
+  /** Send to the customer now (mark sent + email). Defaults to true. */
+  send?: boolean;
 }
 
 function isoDate(d: Date): string {
@@ -94,31 +96,36 @@ function invoiceTotal(items: InvoiceItemArg[]): number {
 
 /** Human-readable preview shown to the merchant at the approval gate. */
 export function previewInvoice(args: CreateInvoiceArgs): string {
-  const cur = args.currency ?? "NGN";
+  const cur = args.currency ?? "";
+  const fmt = (n: number) =>
+    cur ? `${cur} ${n.toLocaleString()}` : n.toLocaleString();
   const lines = (args.items ?? []).map(
     (it) =>
-      `  • ${it.quantity} × ${it.name} @ ${cur} ${Number(
-        it.unit_price,
-      ).toLocaleString()} = ${cur} ${(
-        Number(it.quantity) * Number(it.unit_price)
-      ).toLocaleString()}`,
+      `  • ${it.quantity} × ${it.name} @ ${fmt(Number(it.unit_price))} = ${fmt(
+        Number(it.quantity) * Number(it.unit_price),
+      )}`,
   );
+  const intent =
+    args.send === false ? " (save as draft)" : " (will be sent to the customer)";
   return [
-    `INVOICE → ${args.customer_name} <${args.customer_email}>`,
+    `INVOICE → ${args.customer_name} <${args.customer_email}>${intent}`,
     ...lines,
-    `  Total: ${cur} ${invoiceTotal(args.items).toLocaleString()}`,
+    `  Total: ${fmt(invoiceTotal(args.items))}`,
     args.note ? `  Note: ${args.note}` : "",
   ]
     .filter(Boolean)
     .join("\n");
 }
 
-/** Create a real invoice. Runs only after the merchant approves. */
+/**
+ * Create an invoice and, unless send=false, mark it sent and email it to the
+ * customer. Runs only after the merchant approves. Returns a live pay link.
+ */
 export async function createInvoice(
   client: ImpalaFlowClient,
   args: CreateInvoiceArgs,
 ): Promise<unknown> {
-  const cur = args.currency ?? "NGN";
+  const cur = args.currency ?? client.defaultCurrency ?? "NGN";
   const now = new Date();
   const due = new Date(now.getTime() + (args.due_in_days ?? 7) * 86_400_000);
 
@@ -140,7 +147,7 @@ export async function createInvoice(
       unit_price: it.unit_price,
       sort_order: i,
     })),
-    status: "pending",
+    status: "draft",
   };
 
   const created: any = await client.post(
@@ -148,6 +155,43 @@ export async function createInvoice(
     payload,
   );
   const id = created?.id ?? created?.invoice_id;
+  const payLink = id ? `${client.appUrl}/invoice/${id}` : undefined;
+
+  let status: string = created?.status ?? "draft";
+  let delivered = false;
+  let sendError: string | undefined;
+  const send = args.send !== false; // default: send
+
+  // The invoice already exists at this point, so everything below is best-effort:
+  // a failure here must NOT throw, or the agent would recreate the invoice.
+  if (send && id) {
+    try {
+      // transition draft -> pending (issued / awaiting payment)
+      await client.request(
+        "PUT",
+        `/api/private/tenants/invoicing/invoices/${id}/status`,
+        { json: { status: "pending" } },
+      );
+      status = "pending";
+      // deliver to the customer by email (invoice is already payable via pay_link)
+      try {
+        await client.post(
+          `/api/private/tenants/invoicing/invoices/${id}/share`,
+          {
+            method: "email",
+            email: args.customer_email,
+            invoice_link: payLink,
+            include_reminder: true,
+          },
+        );
+        delivered = true;
+      } catch {
+        // delivery is best-effort
+      }
+    } catch (err: any) {
+      sendError = String(err?.message ?? err);
+    }
+  }
 
   return {
     ok: true,
@@ -155,10 +199,11 @@ export async function createInvoice(
     invoice_number: created?.invoice_number,
     total: invoiceTotal(args.items),
     currency: cur,
-    status: created?.status ?? "pending",
-    pay_link: id ? `${client.appUrl}/invoice/${id}` : undefined,
-    // Kept for first-live validation of the backend response shape; trim later.
-    raw: created,
+    status,
+    sent: send && !sendError,
+    delivered,
+    pay_link: payLink,
+    ...(sendError ? { send_error: sendError } : {}),
   };
 }
 

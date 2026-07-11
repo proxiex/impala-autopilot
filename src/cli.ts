@@ -62,10 +62,15 @@ async function main(): Promise<void> {
     console.error(`Login failed: ${err?.message ?? err}`);
     exit(1);
   }
+  const currency = await client.fetchDefaultCurrency();
   console.log(
     `Logged in as ${green(client.user.email ?? "?")} ` +
-      `(tenant ${client.tenantId}) · model ${magenta(settings.agentModel)}\n`,
+      `(tenant ${client.tenantId}) · ${currency ?? "?"} · model ${magenta(settings.agentModel)}\n`,
   );
+
+  const systemContext = currency
+    ? `Store context: the merchant's default currency is ${currency}. Use it for invoices unless the customer explicitly names another currency.`
+    : undefined;
 
   const rawArgs = argv.slice(2);
   const flags = new Set(rawArgs.filter((a) => a.startsWith("--")));
@@ -83,6 +88,7 @@ async function main(): Promise<void> {
       const { answer } = await runAgent(llm, settings.agentModel, client, single, {
         onEvent,
         approver,
+        systemContext,
       });
       console.log(`\n${magenta("autopilot ›")} ${answer}`);
       return;
@@ -99,6 +105,7 @@ async function main(): Promise<void> {
         history,
         onEvent,
         approver,
+        systemContext,
       });
       console.log(`\n${magenta("autopilot ›")} ${answer}\n`);
       history.push({ role: "user", content: message });
