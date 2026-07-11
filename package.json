@@ -1,0 +1,25 @@
+{
+  "name": "impala-autopilot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "AI operations agent for African micro-merchants — drives the ImpalaFlow API with Qwen on Alibaba Cloud",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "chat": "tsx src/cli.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "openai": "^4.60.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
