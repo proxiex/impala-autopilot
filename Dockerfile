@@ -8,6 +8,7 @@ RUN npm ci
 
 COPY tsconfig.json ./
 COPY src ./src
+COPY public ./public
 
 ENV PORT=8787
 EXPOSE 8787

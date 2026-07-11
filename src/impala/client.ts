@@ -55,6 +55,18 @@ export class ImpalaFlowClient {
     return client;
   }
 
+  /** Log in with explicit credentials and return the raw login response. */
+  static async authenticate(
+    settings: Settings,
+    email: string,
+    password: string,
+  ): Promise<Record<string, any>> {
+    const client = new ImpalaFlowClient(settings);
+    client.email = email;
+    client.password = password;
+    return client.login();
+  }
+
   // ---- auth ---------------------------------------------------------------
   async login(): Promise<Record<string, any>> {
     if (!this.email || !this.password) {

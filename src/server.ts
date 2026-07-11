@@ -15,6 +15,9 @@
  */
 import Fastify from "fastify";
 import cors from "@fastify/cors";
+import fastifyStatic from "@fastify/static";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 
 import { loadSettings } from "./config";
@@ -28,6 +31,10 @@ const llm = makeLlm(settings);
 
 const app = Fastify({ logger: true });
 await app.register(cors, { origin: true });
+
+// Serve the mini-dashboard (public/index.html) at /
+const publicDir = join(dirname(fileURLToPath(import.meta.url)), "..", "public");
+await app.register(fastifyStatic, { root: publicDir, prefix: "/" });
 
 function tokenFrom(req: { headers: Record<string, unknown> }): string {
   const auth = req.headers["authorization"];
@@ -44,6 +51,31 @@ function tokenFrom(req: { headers: Record<string, unknown> }): string {
 }
 
 app.get("/health", async () => ({ ok: true, model: settings.agentModel }));
+
+interface LoginBody {
+  email?: string;
+  password?: string;
+}
+
+// Login proxy so the browser UI can authenticate without CORS to the API.
+app.post("/auth/login", async (req, reply) => {
+  const { email, password } = (req.body ?? {}) as LoginBody;
+  if (!email || !password) {
+    return reply.code(400).send({ error: "email and password are required" });
+  }
+  try {
+    const data = await ImpalaFlowClient.authenticate(settings, email, password);
+    return {
+      access_token: data.access_token,
+      tenant_id: data.tenant_id,
+      email: data.email,
+      first_name: data.first_name,
+      company_name: data.company_name,
+    };
+  } catch {
+    return reply.code(401).send({ error: "Login failed. Check your email and password." });
+  }
+});
 
 interface ChatBody {
   message?: string;

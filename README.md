@@ -59,13 +59,16 @@ Single-shot:
 npm run chat -- "how much stock of rice do I have?"
 ```
 
-### Run as a service
+### Run the dashboard
 
 ```bash
-npm run serve            # HTTP API on :8787
+npm run serve            # dashboard + API on http://localhost:8787
 ```
 
-Multi-tenant — each request carries the merchant's ImpalaFlow bearer token:
+Open **http://localhost:8787**, sign in with an ImpalaFlow account, and chat — every action
+comes back as an approval card you confirm before it runs. Endpoints (multi-tenant; each
+request carries the merchant's bearer token):
+- `POST /auth/login` `{ email, password }` → `{ access_token, ... }`
 - `POST /agent/chat` `{ message, history }` → `{ answer, proposal }` (a proposed action is **not** executed)
 - `POST /agent/approve` `{ proposal }` → executes the approved action
 
