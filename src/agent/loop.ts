@@ -119,8 +119,9 @@ async function executeTool(
       : false; // default-deny: never take an action without an approver
     if (!approved) {
       return {
-        declined: true,
-        reason: "The merchant did not approve this action.",
+        executed: false,
+        awaiting_approval: true,
+        note: "Not run — this action needs the merchant's approval first.",
       };
     }
   }

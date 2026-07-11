@@ -125,7 +125,9 @@ export async function createInvoice(
   client: ImpalaFlowClient,
   args: CreateInvoiceArgs,
 ): Promise<unknown> {
-  const cur = args.currency ?? client.defaultCurrency ?? "NGN";
+  // Resolve currency robustly: explicit arg, cached default, or fetch it now.
+  let cur = args.currency ?? client.defaultCurrency;
+  if (!cur) cur = (await client.fetchDefaultCurrency()) ?? "NGN";
   const now = new Date();
   const due = new Date(now.getTime() + (args.due_in_days ?? 7) * 86_400_000);
 

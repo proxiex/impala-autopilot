@@ -39,8 +39,10 @@ export function loadSettings(): Settings {
       process.env.IMPALAFLOW_BASE_URL ?? "https://api.impalaflow.com",
     impalaflowAppUrl:
       process.env.IMPALAFLOW_APP_URL ?? "https://impalaflow.com",
-    impalaflowEmail: required("IMPALAFLOW_EMAIL"),
-    impalaflowPassword: required("IMPALAFLOW_PASSWORD"),
+    // Optional: only the CLI/seed (credential mode) need these. The HTTP service
+    // runs in token mode, using the merchant's own token per request.
+    impalaflowEmail: process.env.IMPALAFLOW_EMAIL ?? "",
+    impalaflowPassword: process.env.IMPALAFLOW_PASSWORD ?? "",
     impalaflowTenantId: process.env.IMPALAFLOW_TENANT_ID || null,
     impalaflowTimezone: process.env.IMPALAFLOW_TIMEZONE ?? "Africa/Lagos",
   };

@@ -59,17 +59,29 @@ Single-shot:
 npm run chat -- "how much stock of rice do I have?"
 ```
 
+### Run as a service
+
+```bash
+npm run serve            # HTTP API on :8787
+```
+
+Multi-tenant — each request carries the merchant's ImpalaFlow bearer token:
+- `POST /agent/chat` `{ message, history }` → `{ answer, proposal }` (a proposed action is **not** executed)
+- `POST /agent/approve` `{ proposal }` → executes the approved action
+
+Deploying on Alibaba Cloud: see [DEPLOY.md](DEPLOY.md).
+
 ## Status
 
-Built and verified (type-check + logic tests):
-- Authenticated ImpalaFlow client (form login + Bearer + 401 refresh).
-- Qwen tool-calling loop with read tools: `list_products`, `order_stats`, `invoice_stats`.
-- First **action tool** `create_invoice`, behind a **human approval gate** — the loop
-  default-denies any action unless an approver explicitly allows it.
-- CLI (`npm run chat`) with an interactive approve/decline prompt.
+Working end to end against the live ImpalaFlow API (verified on a Ghana test store):
+- Authenticated client (form login + Bearer + refresh) plus **token mode** for the service.
+- Qwen tool-calling loop: reads (`list_products`, `order_stats`, `invoice_stats`) + the action
+  `create_invoice` (create → issue → email the customer → pay link), currency-aware.
+- **Human approval gate** — actions never run without approval.
+- **CLI** (`npm run chat`) and **HTTP service** (`npm run serve`), both with propose → approve.
 
-Next: more action tools (campaigns, marketing follow-ups), `qwen-vl-max` photo→product,
-the dashboard Autopilot inbox in IF-FE, and the HTTP service. See
+Next: the dashboard Autopilot inbox in IF-FE, more action tools (payment recovery, marketing,
+donations), and `qwen-vl-max` photo→product. See
 [`../IF-FE/docs/autopilot-agent-plan.md`](../IF-FE/docs/autopilot-agent-plan.md).
 
 ## License

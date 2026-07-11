@@ -39,8 +39,29 @@ export class ImpalaFlowClient {
     this.tenantId = settings.impalaflowTenantId;
   }
 
+  /** Build a client that uses a caller-supplied access token (service mode). */
+  static fromToken(
+    settings: Settings,
+    token: {
+      accessToken: string;
+      refreshToken?: string | null;
+      tenantId?: string | null;
+    },
+  ): ImpalaFlowClient {
+    const client = new ImpalaFlowClient(settings);
+    client.accessToken = token.accessToken;
+    client.refreshToken = token.refreshToken ?? null;
+    if (token.tenantId) client.tenantId = token.tenantId;
+    return client;
+  }
+
   // ---- auth ---------------------------------------------------------------
   async login(): Promise<Record<string, any>> {
+    if (!this.email || !this.password) {
+      throw new ImpalaFlowError(
+        "No ImpalaFlow credentials configured (set IMPALAFLOW_EMAIL/PASSWORD), or use token mode.",
+      );
+    }
     const body = new URLSearchParams({
       username: this.email,
       password: this.password,
