@@ -121,6 +121,10 @@ let token = null;
 let history = [];
 const $ = (id) => document.getElementById(id);
 
+// Same-origin when served over http(s); fall back to a local base when the page
+// is opened without an http origin (e.g. a preview panel using srcdoc/file://).
+const API_BASE = /^https?:$/.test(location.protocol) ? "" : "http://localhost:8787";
+
 const SAMPLES = [
   "How is my business doing?",
   "What's in my catalog?",
@@ -128,7 +132,7 @@ const SAMPLES = [
 ];
 
 async function api(path, body) {
-  const res = await fetch(path, {
+  const res = await fetch(API_BASE + path, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...(token ? { Authorization: "Bearer " + token } : {}) },
     body: JSON.stringify(body),
