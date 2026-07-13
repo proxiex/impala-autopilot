@@ -37,6 +37,8 @@ export async function listProducts(
     stock_status: p.stock_status,
     sku: p.sku,
     item_type: p.item_type,
+    image_url: p.image_url ?? null,
+    description: p.description ?? null,
   }));
   if (args.query) {
     const q = args.query.toLowerCase();
@@ -60,6 +62,61 @@ export async function orderStats(client: ImpalaFlowClient): Promise<unknown> {
 export async function invoiceStats(client: ImpalaFlowClient): Promise<unknown> {
   const data = await client.get("/api/private/tenants/invoicing/stats");
   return { stats: data };
+}
+
+export async function searchContacts(
+  client: ImpalaFlowClient,
+  args: { query?: string },
+): Promise<unknown> {
+  const tenant = client.resolveTenantId();
+  if (!tenant) return { error: "No tenant id available for this session." };
+  const query = (args.query ?? "").trim();
+  if (query.length < 3) {
+    return { error: "Provide a search term of at least 3 characters." };
+  }
+  const data = await client.get(
+    `/api/private/account/${tenant}/contacts/search`,
+    { query },
+  );
+  const contacts = itemsOf(data).map((c: any) => ({
+    id: c.id,
+    name: [c.first_name, c.last_name].filter(Boolean).join(" ") || c.email,
+    email: c.email,
+    phone: c.phone,
+    status: c.status,
+  }));
+  return { count: contacts.length, contacts };
+}
+
+export async function listCampaigns(client: ImpalaFlowClient): Promise<unknown> {
+  const data = await client.get("/api/private/campaigns");
+  const campaigns = itemsOf(data).map((c: any) => ({
+    id: c.id,
+    title: c.title,
+    status: c.status,
+    raised_amount: c.raised_amount,
+    goal_amount: c.goal_amount,
+    currency: c.currency,
+    donor_count: c.donor_count,
+  }));
+  return { count: campaigns.length, campaigns };
+}
+
+export async function donationStats(client: ImpalaFlowClient): Promise<unknown> {
+  const stats = await client.get("/api/private/campaigns/stats");
+  return { stats };
+}
+
+export async function listSmartForms(client: ImpalaFlowClient): Promise<unknown> {
+  const data = await client.get("/api/private/smart-forms/dashboard");
+  const forms = itemsOf(data).map((f: any) => ({
+    id: f.id,
+    name: f.name,
+    status: f.status,
+    submissions_count: f.submissions_count,
+    public_url: f.public_url,
+  }));
+  return { count: forms.length, forms };
 }
 
 // ---- action tools (approval-gated) ----------------------------------------
@@ -225,6 +282,10 @@ export const REGISTRY: Record<string, ToolDef> = {
   list_products: { run: (c, a) => listProducts(c, a) },
   order_stats: { run: (c) => orderStats(c) },
   invoice_stats: { run: (c) => invoiceStats(c) },
+  search_contacts: { run: (c, a) => searchContacts(c, a) },
+  list_campaigns: { run: (c) => listCampaigns(c) },
+  donation_stats: { run: (c) => donationStats(c) },
+  list_smart_forms: { run: (c) => listSmartForms(c) },
   create_invoice: {
     run: (c, a) => createInvoice(c, a),
     requiresApproval: true,

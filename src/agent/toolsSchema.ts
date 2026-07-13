@@ -53,6 +53,52 @@ export const TOOLS: Tool[] = [
   {
     type: "function",
     function: {
+      name: "search_contacts",
+      description:
+        "Search the merchant's contacts/customers by name, email, or phone. " +
+        "Requires a search term of at least 3 characters.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Search term (min 3 chars)." },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_campaigns",
+      description:
+        "List the merchant's donation/fundraising campaigns (ImpalaGive) with " +
+        "amounts raised and goals.",
+      parameters: { type: "object", properties: {}, required: [] },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "donation_stats",
+      description:
+        "Get fundraising totals across all campaigns: total raised, net amount, " +
+        "donor counts, and average donation.",
+      parameters: { type: "object", properties: {}, required: [] },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_smart_forms",
+      description:
+        "List the merchant's smart forms (lead-capture/order forms) with how many " +
+        "submissions each has.",
+      parameters: { type: "object", properties: {}, required: [] },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "create_invoice",
       description:
         "Draft and issue an invoice to a customer. Look up real product prices " +

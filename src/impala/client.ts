@@ -180,4 +180,19 @@ export class ImpalaFlowClient {
     }
     return this.defaultCurrency;
   }
+
+  /** Best-effort tenant id: explicit value or decoded from the JWT access token. */
+  resolveTenantId(): string | null {
+    if (this.tenantId) return this.tenantId;
+    if (!this.accessToken) return null;
+    try {
+      const part = this.accessToken.split(".")[1] ?? "";
+      const b64 = part.replace(/-/g, "+").replace(/_/g, "/");
+      const payload = JSON.parse(Buffer.from(b64, "base64").toString("utf8"));
+      this.tenantId = payload.tenant_id ?? payload.tenantId ?? null;
+    } catch {
+      /* ignore malformed token */
+    }
+    return this.tenantId;
+  }
 }
