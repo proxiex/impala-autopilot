@@ -24,6 +24,7 @@ import { loadSettings } from "./config";
 import { makeLlm } from "./llm/client";
 import { ImpalaFlowClient } from "./impala/client";
 import { runAgent, type Approver } from "./agent/loop";
+import { toBlocks } from "./agent/blocks";
 import { REGISTRY } from "./impala/tools";
 
 const settings = loadSettings();
@@ -80,19 +81,31 @@ app.post("/auth/login", async (req, reply) => {
 interface ChatBody {
   message?: string;
   history?: ChatCompletionMessageParam[];
+  channel?: string;
 }
 
 app.post("/agent/chat", async (req, reply) => {
-  const { message, history } = (req.body ?? {}) as ChatBody;
+  const { message, history, channel } = (req.body ?? {}) as ChatBody;
   if (!message) return reply.code(400).send({ error: "message is required" });
+  const dashboard = channel === "dashboard";
 
   const client = ImpalaFlowClient.fromToken(settings, {
     accessToken: tokenFrom(req),
   });
   const currency = await client.fetchDefaultCurrency();
-  const systemContext = currency
-    ? `Store context: the merchant's default currency is ${currency}. Use it for invoices unless the customer explicitly names another currency.`
-    : undefined;
+
+  const parts: string[] = [];
+  if (currency) {
+    parts.push(
+      `Store context: the merchant's default currency is ${currency}. Use it for invoices unless the customer explicitly names another currency.`,
+    );
+  }
+  if (dashboard) {
+    parts.push(
+      'This is the dashboard channel: the UI shows products, stats, contacts, campaigns, and forms as rich cards below your reply. So reply with ONE short sentence only (e.g. "Here\'s your catalog." or "Here\'s how this week looks.") and NEVER enumerate items, prices, counts, or figures in your text — the cards already show them.',
+    );
+  }
+  const systemContext = parts.length ? parts.join(" ") : undefined;
 
   // Propose mode: capture the first gated action instead of executing it.
   let proposal: { tool: string; args: unknown; preview: string } | null = null;
@@ -101,13 +114,19 @@ app.post("/agent/chat", async (req, reply) => {
     return false;
   };
 
-  const { answer } = await runAgent(llm, settings.agentModel, client, message, {
-    history: history ?? [],
-    systemContext,
-    approver,
-  });
+  const { answer, invocations } = await runAgent(
+    llm,
+    settings.agentModel,
+    client,
+    message,
+    { history: history ?? [], systemContext, approver },
+  );
 
-  return { answer, proposal };
+  return {
+    answer,
+    proposal,
+    blocks: dashboard ? toBlocks(invocations, currency) : [],
+  };
 });
 
 interface ApproveBody {

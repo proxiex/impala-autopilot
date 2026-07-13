@@ -30,9 +30,16 @@ export interface AgentOptions {
   systemContext?: string;
 }
 
+export interface ToolInvocation {
+  name: string;
+  args: unknown;
+  result: unknown;
+}
+
 export interface AgentResult {
   answer: string;
   messages: ChatCompletionMessageParam[];
+  invocations: ToolInvocation[];
 }
 
 export async function runAgent(
@@ -53,6 +60,7 @@ export async function runAgent(
     ...history,
     { role: "user", content: userMessage },
   ];
+  const invocations: ToolInvocation[] = [];
 
   for (let step = 0; step < MAX_STEPS; step++) {
     const response = await llm.chat.completions.create({
@@ -72,7 +80,7 @@ export async function runAgent(
 
     const toolCalls = message.tool_calls;
     if (!toolCalls || toolCalls.length === 0) {
-      return { answer: message.content ?? "", messages };
+      return { answer: message.content ?? "", messages, invocations };
     }
 
     for (const tc of toolCalls) {
@@ -88,6 +96,7 @@ export async function runAgent(
 
       const result = await executeTool(client, name, args, approver);
       onEvent?.("tool_result", name, result);
+      invocations.push({ name, args, result });
 
       messages.push({
         role: "tool",
@@ -100,6 +109,7 @@ export async function runAgent(
   return {
     answer: "(stopped: reached the step limit without a final answer)",
     messages,
+    invocations,
   };
 }
 

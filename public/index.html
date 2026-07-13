@@ -78,6 +78,35 @@
     padding: 14px 16px; font-size: 14px; }
   .result a { color: var(--purple); font-weight: 600; }
 
+  /* Rich blocks */
+  .block { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; }
+  .block-title { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 12px; }
+  .pgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 12px; }
+  .pcard { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .pimg { height: 90px; background-size: cover; background-position: center; background-color: #f0eefb; }
+  .pimg.placeholder { display: flex; align-items: center; justify-content: center; font-size: 30px; font-weight: 700; color: var(--purple); }
+  .pmeta { padding: 9px 10px; }
+  .pname { font-size: 13px; font-weight: 600; line-height: 1.3; }
+  .pprice { font-size: 13px; color: var(--purple); font-weight: 700; margin-top: 2px; }
+  .pstock { display: inline-block; font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .sgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(116px, 1fr)); gap: 10px; }
+  .stile { background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+  .sval { font-size: 20px; font-weight: 700; }
+  .skey { font-size: 11px; color: var(--muted); text-transform: capitalize; margin-top: 2px; }
+  .rlist { display: flex; flex-direction: column; }
+  .ritem { display: flex; align-items: center; gap: 10px; padding: 10px 2px; border-bottom: 1px solid var(--line); }
+  .ritem:last-child { border-bottom: none; }
+  .rmain { flex: 1; min-width: 0; }
+  .rtitle { font-size: 14px; font-weight: 600; }
+  .rsub { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rbadge { font-size: 11px; background: #efe9ff; color: var(--purple-d); padding: 3px 9px; border-radius: 999px; }
+
+  /* Capability hints */
+  .hints { display: flex; flex-direction: column; gap: 14px; }
+  .hint-intro { font-size: 14px; color: var(--muted); }
+  .hint-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
+  .hint-row { display: flex; flex-wrap: wrap; gap: 8px; }
+
   footer { border-top: 1px solid var(--line); background: var(--card); padding: 14px 20px; }
   .composer { max-width: 760px; margin: 0 auto; display: flex; gap: 10px; }
   .composer input { flex: 1; }
@@ -125,10 +154,13 @@ const $ = (id) => document.getElementById(id);
 // is opened without an http origin (e.g. a preview panel using srcdoc/file://).
 const API_BASE = /^https?:$/.test(location.protocol) ? "" : "http://localhost:8787";
 
-const SAMPLES = [
-  "How is my business doing?",
-  "What's in my catalog?",
-  "Invoice Ama Owusu (ama.demo@gmail.com) for 2 Bag of Rice 25kg and 1 Cooking Oil 5L",
+const HINTS = [
+  { group: "Business", items: ["How is my business doing this week?", "Any overdue invoices?"] },
+  { group: "Catalog", items: ["What's in my catalog?", "Which items are low on stock?"] },
+  { group: "Invoicing", items: ["Invoice Ama (ama.demo@gmail.com) for 2 Bag of Rice 25kg"] },
+  { group: "Contacts", items: ["Find the contact named Kwame"] },
+  { group: "Fundraising", items: ["How are my donation campaigns doing?"] },
+  { group: "Forms", items: ["List my smart forms and their submissions"] },
 ];
 
 async function api(path, body) {
@@ -196,16 +228,74 @@ function renderResult(r) {
   $("stream").appendChild(div); scroll();
 }
 
+function renderBlocks(blocks) {
+  blocks.forEach(b => {
+    if (b.type === "products") renderProducts(b);
+    else if (b.type === "stats") renderStats(b);
+    else if (b.type === "list") renderList(b);
+  });
+  scroll();
+}
+
+function renderProducts(b) {
+  const wrap = document.createElement("div"); wrap.className = "block";
+  wrap.innerHTML = `<div class="block-title">${esc(b.title || "Products")}</div>`;
+  const grid = document.createElement("div"); grid.className = "pgrid";
+  (b.items || []).forEach(p => {
+    const card = document.createElement("div"); card.className = "pcard";
+    const img = p.image_url
+      ? `<div class="pimg" style="background-image:url('${esc(p.image_url)}')"></div>`
+      : `<div class="pimg placeholder">${esc(String(p.name || "?").slice(0, 1))}</div>`;
+    const price = (b.currency ? esc(b.currency) + " " : "") + esc(p.price);
+    const stock = (p.stock === null || p.stock === undefined)
+      ? "" : `<span class="pstock">${esc(p.stock)} in stock</span>`;
+    card.innerHTML = `${img}<div class="pmeta"><div class="pname">${esc(p.name)}</div>` +
+      `<div class="pprice">${price}</div>${stock}</div>`;
+    grid.appendChild(card);
+  });
+  wrap.appendChild(grid); $("stream").appendChild(wrap);
+}
+
+function renderStats(b) {
+  const wrap = document.createElement("div"); wrap.className = "block";
+  wrap.innerHTML = `<div class="block-title">${esc(b.title || "Stats")}</div>`;
+  const grid = document.createElement("div"); grid.className = "sgrid";
+  Object.entries(b.stats || {}).forEach(([k, v]) => {
+    if (v === null || typeof v === "object") return;
+    const tile = document.createElement("div"); tile.className = "stile";
+    tile.innerHTML = `<div class="sval">${esc(v)}</div><div class="skey">${esc(String(k).replace(/_/g, " "))}</div>`;
+    grid.appendChild(tile);
+  });
+  wrap.appendChild(grid); $("stream").appendChild(wrap);
+}
+
+function renderList(b) {
+  const wrap = document.createElement("div"); wrap.className = "block";
+  wrap.innerHTML = `<div class="block-title">${esc(b.title || "List")}</div>`;
+  const list = document.createElement("div"); list.className = "rlist";
+  (b.items || []).forEach(it => {
+    const row = document.createElement("div"); row.className = "ritem";
+    row.innerHTML = `<div class="rmain"><div class="rtitle">${esc(it.title || "")}</div>` +
+      `<div class="rsub">${esc(it.subtitle || "")}</div></div>` +
+      (it.badge ? `<span class="rbadge">${esc(it.badge)}</span>` : "");
+    list.appendChild(row);
+  });
+  wrap.appendChild(list); $("stream").appendChild(wrap);
+}
+
 async function send(text) {
   const msg = (text ?? $("input").value).trim();
   if (!msg) return;
   $("input").value = "";
+  const hints = document.getElementById("chips");
+  if (hints) hints.remove();
   addBubble("user", msg);
   const th = addThinking();
   try {
-    const data = await api("/agent/chat", { message: msg, history });
+    const data = await api("/agent/chat", { message: msg, history, channel: "dashboard" });
     th.remove();
     if (data.answer) addBubble("bot", data.answer);
+    if (data.blocks && data.blocks.length) renderBlocks(data.blocks);
     history.push({ role: "user", content: msg });
     history.push({ role: "assistant", content: data.answer || "" });
     if (data.proposal) addProposal(data.proposal);
@@ -225,7 +315,7 @@ async function login() {
     $("who").textContent = (data.company_name || data.first_name || data.email || "Merchant");
     $("login").classList.add("hidden");
     $("chat").classList.remove("hidden");
-    renderChips();
+    renderHints();
     $("input").focus();
   } catch (e) {
     $("loginErr").textContent = e.message;
@@ -234,13 +324,21 @@ async function login() {
   }
 }
 
-function renderChips() {
-  const c = $("chips"); c.innerHTML = "";
-  SAMPLES.forEach(s => {
-    const b = document.createElement("button");
-    b.className = "chip"; b.textContent = s;
-    b.onclick = () => send(s);
-    c.appendChild(b);
+function renderHints() {
+  const c = $("chips");
+  c.className = "hints";
+  c.innerHTML = '<div class="hint-intro">👋 I can help across your whole ImpalaFlow business — try one of these:</div>';
+  HINTS.forEach(h => {
+    const g = document.createElement("div");
+    g.innerHTML = `<div class="hint-label">${h.group}</div>`;
+    const row = document.createElement("div"); row.className = "hint-row";
+    h.items.forEach(s => {
+      const b = document.createElement("button");
+      b.className = "chip"; b.textContent = s;
+      b.onclick = () => send(s);
+      row.appendChild(b);
+    });
+    g.appendChild(row); c.appendChild(g);
   });
 }
 
