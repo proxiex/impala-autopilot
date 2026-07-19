@@ -105,6 +105,7 @@
     padding: 8px 14px; border-radius: 999px; font-size: 13.5px; font-weight: 600; }
   .sug::after { content: " ›"; opacity: .6; }
   .sug:hover { background: var(--purple); border-color: var(--purple); color: #fff; }
+  .fill { border-style: dashed !important; }
   .bubble code { background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; font-size: 13px; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
 
   .thinking .bubble { color: var(--muted); }
@@ -240,14 +241,56 @@ const API_BASE = (() => {
     : DEPLOYED_API;
 })();
 
+// Items are either complete commands (click = run) or templates with ⟨placeholders⟩
+// (click = drop into the composer for editing, first placeholder pre-selected).
 const HINTS = [
-  { group: "Business", items: ["How is my business doing this week?", "Any overdue invoices?"] },
-  { group: "Catalog", items: ["What's in my catalog?", "Add products — paste your price list or CSV"] },
-  { group: "Invoicing", items: ["Invoice Ama (ama.demo@gmail.com) for 2 Bag of Rice 25kg", "Chase my unpaid invoices"] },
-  { group: "Contacts", items: ["Show my customers", "What's my history with Kwame?", "Add a new contact"] },
+  { group: "Business", items: [
+    "How is my business doing this week?",
+    "Any overdue invoices?",
+  ]},
+  { group: "Catalog", items: [
+    "What's in my catalog?",
+    { label: "Add products from a price list", text: "Add these products to my catalog:\n⟨paste your price list — name, price, stock⟩" },
+  ]},
+  { group: "Invoicing", items: [
+    { label: "Invoice a customer", text: "Invoice ⟨customer name⟩ (⟨email⟩) for ⟨quantity and product⟩" },
+    "Chase my unpaid invoices",
+  ]},
+  { group: "Contacts", items: [
+    "Show my customers",
+    { label: "Customer history", text: "What's my history with ⟨customer name⟩?" },
+    { label: "Add a new contact", text: "Add a new contact: ⟨name⟩, ⟨email⟩, ⟨phone⟩" },
+  ]},
   { group: "Fundraising", items: ["How are my donation campaigns doing?"] },
   { group: "Forms", items: ["List my smart forms and their submissions"] },
 ];
+
+const PLACEHOLDER_RE = /⟨[^⟩]*⟩|\[[^\]]{3,40}\]/;
+
+function fillComposer(text) {
+  const input = $("input");
+  input.value = text.replace(/\n/g, " ");
+  input.focus();
+  const m = input.value.match(/⟨[^⟩]*⟩|\[[^\]]{3,40}\]/);
+  if (m) input.setSelectionRange(m.index, m.index + m[0].length);
+}
+
+/** Click behavior for any suggestion: templates fill the composer, commands run. */
+function actOn(text) {
+  if (PLACEHOLDER_RE.test(text)) fillComposer(text);
+  else send(text);
+}
+
+function hintButton(item, className) {
+  const label = typeof item === "string" ? item : item.label;
+  const text = typeof item === "string" ? item : item.text;
+  const isTemplate = PLACEHOLDER_RE.test(text);
+  const b = document.createElement("button");
+  b.className = className + (isTemplate ? " fill" : "");
+  b.textContent = label + (isTemplate ? " ✏️" : "");
+  b.onclick = () => actOn(text);
+  return b;
+}
 
 async function api(path, body) {
   const res = await fetch(API_BASE + path, {
@@ -323,9 +366,9 @@ function addBubble(who, text) {
         }
         const label = m[1].replace(/\*\*|`/g, "").trim();
         const b = document.createElement("button");
-        b.className = "sug";
-        b.textContent = label;
-        b.onclick = () => send(label);
+        b.className = "sug" + (PLACEHOLDER_RE.test(label) ? " fill" : "");
+        b.textContent = label + (PLACEHOLDER_RE.test(label) ? " ✏️" : "");
+        b.onclick = () => actOn(label);
         sugWrap.appendChild(b);
       } else {
         sugWrap = null;
@@ -571,12 +614,7 @@ function buildSideMenu() {
     t.className = "side-title";
     t.textContent = `${GROUP_ICONS[h.group] ?? ""} ${h.group}`;
     side.appendChild(t);
-    h.items.forEach(s => {
-      const b = document.createElement("button");
-      b.className = "sideitem"; b.textContent = s;
-      b.onclick = () => send(s);
-      side.appendChild(b);
-    });
+    h.items.forEach(item => side.appendChild(hintButton(item, "sideitem")));
   });
 }
 
@@ -585,12 +623,7 @@ function setNextActions(labels) {
   const items = document.getElementById("nextItems");
   if (!wrap || !items) return;
   items.innerHTML = "";
-  labels.filter(Boolean).forEach(s => {
-    const b = document.createElement("button");
-    b.className = "sideitem"; b.textContent = s;
-    b.onclick = () => send(s);
-    items.appendChild(b);
-  });
+  labels.filter(Boolean).forEach(s => items.appendChild(hintButton(s, "sideitem")));
   wrap.classList.toggle("hidden", labels.length === 0);
 }
 
@@ -607,12 +640,7 @@ function renderHints() {
     const g = document.createElement("div");
     g.innerHTML = `<div class="hint-label">${GROUP_ICONS[h.group] ?? ""} ${h.group}</div>`;
     const row = document.createElement("div"); row.className = "hint-row";
-    h.items.forEach(s => {
-      const b = document.createElement("button");
-      b.className = "chip"; b.textContent = s;
-      b.onclick = () => send(s);
-      row.appendChild(b);
-    });
+    h.items.forEach(item => row.appendChild(hintButton(item, "chip")));
     g.appendChild(row); c.appendChild(g);
   });
 }
