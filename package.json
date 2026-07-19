@@ -12,12 +12,14 @@
     "chat": "tsx src/cli.ts",
     "seed": "tsx src/seed.ts",
     "serve": "tsx src/server.ts",
+    "mcp": "tsx src/mcp.ts",
     "typecheck": "tsc --noEmit",
     "build": "tsc"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.0",
     "@fastify/static": "^10.0.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "dotenv": "^16.4.5",
     "fastify": "^5.10.0",
     "openai": "^4.60.0"
