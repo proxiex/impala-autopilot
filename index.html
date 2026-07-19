@@ -421,11 +421,28 @@ function addBubble(who, text) {
   $("stream").appendChild(row); scroll();
   return row;
 }
+const WORKING_PHRASES = [
+  "Autopilot is working",
+  "Reading your message",
+  "Checking your business data",
+  "Talking to your store",
+  "Crunching the numbers",
+  "Putting it together",
+];
+
 function addThinking() {
   const row = document.createElement("div");
   row.className = "msg bot thinking";
-  row.innerHTML = `<div class="avatar"></div><div class="bubble">Autopilot is working<span class="dots"><span>.</span><span>.</span><span>.</span></span></div>`;
+  row.innerHTML = `<div class="avatar"></div><div class="bubble"><span class="wtext">${WORKING_PHRASES[0]}</span><span class="dots"><span>.</span><span>.</span><span>.</span></span></div>`;
   $("stream").appendChild(row); scroll();
+  let i = 0;
+  const label = row.querySelector(".wtext");
+  const timer = setInterval(() => {
+    i = (i + 1) % WORKING_PHRASES.length;
+    label.textContent = WORKING_PHRASES[i];
+  }, 2000);
+  const origRemove = row.remove.bind(row);
+  row.remove = () => { clearInterval(timer); origRemove(); };
   return row;
 }
 
