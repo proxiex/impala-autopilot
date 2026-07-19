@@ -56,6 +56,11 @@
   .msg.user .bubble { background: var(--purple); color: #fff; border-bottom-right-radius: 4px; }
   .msg.bot .bubble { background: var(--card); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
   .bubble a { color: var(--purple); font-weight: 600; }
+  .sugs { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin: 8px 0; }
+  .sug { text-align: left; background: #f4f1ff; border: 1px solid #ddd5f6; color: var(--purple-d);
+    padding: 8px 14px; border-radius: 999px; font-size: 13.5px; font-weight: 600; }
+  .sug::after { content: " ›"; opacity: .6; }
+  .sug:hover { background: var(--purple); border-color: var(--purple); color: #fff; }
   .bubble code { background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; font-size: 13px; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
 
   .thinking .bubble { color: var(--muted); }
@@ -209,8 +214,48 @@ function scroll() { const s = document.querySelector(".stream"); s.scrollTop = s
 function addBubble(who, text) {
   const row = document.createElement("div");
   row.className = "msg " + who;
-  const body = who === "bot" ? md(text) : esc(text);
-  row.innerHTML = `<div class="bubble">${body}</div>`;
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+
+  if (who !== "bot") {
+    bubble.textContent = text;
+  } else {
+    // Bot bubbles: markdown paragraphs, and bullet lines become clickable
+    // action chips that send themselves as the next message.
+    const lines = String(text).split("\n");
+    let para = [];
+    const flush = () => {
+      if (!para.length) return;
+      const p = document.createElement("div");
+      p.innerHTML = md(para.join("\n"));
+      bubble.appendChild(p);
+      para = [];
+    };
+    let sugWrap = null;
+    for (const line of lines) {
+      const m = line.match(/^[ \t]*[-•]\s+(.+)$/);
+      if (m) {
+        flush();
+        if (!sugWrap) {
+          sugWrap = document.createElement("div");
+          sugWrap.className = "sugs";
+          bubble.appendChild(sugWrap);
+        }
+        const label = m[1].replace(/\*\*|`/g, "").trim();
+        const b = document.createElement("button");
+        b.className = "sug";
+        b.textContent = label;
+        b.onclick = () => send(label);
+        sugWrap.appendChild(b);
+      } else {
+        sugWrap = null;
+        para.push(line);
+      }
+    }
+    flush();
+  }
+
+  row.appendChild(bubble);
   $("stream").appendChild(row); scroll();
   return row;
 }
