@@ -1,8 +1,10 @@
 # Demo Video — Shot-by-Shot Script (~3:00)
 
 **Setup before recording (do ALL of these):**
-- FC is running the LATEST image (the refresh click) — verify the "history with Kwame" hint chip appears.
-- Record against the **deployed URL**, not localhost: `https://impala-utopilot-seirlydawn.ap-southeast-1.fcapp.run`
+- FC is running the LATEST image (the refresh click) — quick check: the side action menu and
+  "Customer history ✏️" template chip must appear on the live demo URL.
+- Record against the **live demo URL**, not localhost: `https://proxiex.github.io/impala-autopilot/`
+  (that's the judges' link; its API runs on Alibaba Cloud FC behind the scenes)
 - Test store cleaned of junk invoices EXCEPT Efua's unpaid GHS 30 one (the recovery demo needs it).
 - If Paystack is configured on the test store: have a phone ready for the payment shot (Scene 2b).
 - Browser at 100% zoom, close other tabs, quiet room. Record 1080p+. Screen recorder: QuickTime/OBS.
