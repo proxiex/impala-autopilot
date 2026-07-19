@@ -148,7 +148,13 @@ app.post("/agent/approve", async (req, reply) => {
     accessToken: tokenFrom(req),
   });
   try {
-    const result = await def.run(client, args);
+    let runArgs = args;
+    if (def.ground) {
+      const grounded = await def.ground(client, runArgs);
+      if (!grounded.ok) return reply.code(422).send({ error: grounded.error });
+      runArgs = grounded.args;
+    }
+    const result = await def.run(client, runArgs);
     return { result };
   } catch (err: any) {
     return reply.code(502).send({ error: String(err?.message ?? err) });

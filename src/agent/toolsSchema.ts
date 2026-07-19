@@ -99,6 +99,36 @@ export const TOOLS: Tool[] = [
   {
     type: "function",
     function: {
+      name: "list_unpaid_invoices",
+      description:
+        "List invoices that are still awaiting payment (pending/viewed/overdue), " +
+        "with customer, amount, due date, and whether they are overdue.",
+      parameters: { type: "object", properties: {}, required: [] },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "send_invoice_reminder",
+      description:
+        "Email a payment reminder (with the pay link) for an existing unpaid " +
+        "invoice. Use list_unpaid_invoices first to get the invoice id and " +
+        "customer email. The merchant approves before it is sent. Remind ONE " +
+        "invoice per call.",
+      parameters: {
+        type: "object",
+        properties: {
+          invoice_id: { type: "string" },
+          customer_email: { type: "string" },
+          invoice_number: { type: "string" },
+        },
+        required: ["invoice_id", "customer_email"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "create_invoice",
       description:
         "Draft and issue an invoice to a customer. Look up real product prices " +

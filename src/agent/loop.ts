@@ -61,6 +61,7 @@ export async function runAgent(
     { role: "user", content: userMessage },
   ];
   const invocations: ToolInvocation[] = [];
+  let emptyRetries = 0;
 
   for (let step = 0; step < MAX_STEPS; step++) {
     const response = await llm.chat.completions.create({
@@ -72,13 +73,19 @@ export async function runAgent(
     const message = response.choices[0]?.message;
     if (!message) break;
 
+    const toolCalls = message.tool_calls;
+    // Qwen occasionally returns an entirely empty turn — retry instead of
+    // surfacing a blank answer.
+    if ((!toolCalls || toolCalls.length === 0) && !message.content?.trim()) {
+      if (emptyRetries++ < 2) continue;
+    }
+
     messages.push({
       role: "assistant",
       content: message.content ?? "",
-      ...(message.tool_calls ? { tool_calls: message.tool_calls } : {}),
+      ...(toolCalls ? { tool_calls: toolCalls } : {}),
     });
 
-    const toolCalls = message.tool_calls;
     if (!toolCalls || toolCalls.length === 0) {
       return { answer: message.content ?? "", messages, invocations };
     }
@@ -121,6 +128,18 @@ async function executeTool(
 ): Promise<unknown> {
   const def = REGISTRY[name];
   if (!def) return { error: `unknown tool: ${name}` };
+
+  // Ground BEFORE the approval preview: the merchant must approve validated
+  // data, and hallucinated inputs bounce back to the model as tool errors.
+  if (def.ground) {
+    try {
+      const grounded = await def.ground(client, args);
+      if (!grounded.ok) return { error: grounded.error };
+      args = grounded.args;
+    } catch (err: any) {
+      return { error: String(err?.message ?? err) };
+    }
+  }
 
   if (def.requiresApproval) {
     const preview = def.preview ? def.preview(args) : JSON.stringify(args);

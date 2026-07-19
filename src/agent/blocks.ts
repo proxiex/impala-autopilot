@@ -77,6 +77,21 @@ export function toBlocks(
           });
         }
         break;
+      case "list_unpaid_invoices":
+        if (r.unpaid?.length) {
+          blocks.push({
+            type: "list",
+            title: "Unpaid invoices",
+            items: r.unpaid.map(
+              (inv: any): ListItem => ({
+                title: `${inv.invoice_number} — ${inv.customer_name ?? ""}`,
+                subtitle: `${inv.currency ?? ""} ${inv.amount} · due ${inv.due_date ?? "?"}`,
+                badge: inv.overdue ? "overdue" : "unpaid",
+              }),
+            ),
+          });
+        }
+        break;
       case "list_smart_forms":
         if (r.forms?.length) {
           blocks.push({

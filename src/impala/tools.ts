@@ -119,6 +119,59 @@ export async function listSmartForms(client: ImpalaFlowClient): Promise<unknown>
   return { count: forms.length, forms };
 }
 
+export async function listUnpaidInvoices(
+  client: ImpalaFlowClient,
+): Promise<unknown> {
+  const data = await client.get("/api/private/tenants/invoicing/invoices");
+  const today = isoDate(new Date());
+  const unpaid = itemsOf(data)
+    .filter((inv: any) =>
+      ["pending", "viewed", "overdue"].includes(
+        String(inv.status ?? "").toLowerCase(),
+      ),
+    )
+    .map((inv: any) => ({
+      id: inv.id,
+      invoice_number: inv.invoice_number,
+      customer_name: inv.client_name ?? inv.customer_name,
+      customer_email: inv.client_email ?? inv.customer_email,
+      amount: inv.amount ?? inv.total,
+      currency: inv.currency,
+      due_date: inv.due_date,
+      overdue: Boolean(inv.due_date && String(inv.due_date) < today),
+    }));
+  return { count: unpaid.length, unpaid };
+}
+
+export interface SendReminderArgs {
+  invoice_id: string;
+  customer_email: string;
+  invoice_number?: string;
+}
+
+/** Email a payment reminder for an existing invoice. Approval-gated. */
+export async function sendInvoiceReminder(
+  client: ImpalaFlowClient,
+  args: SendReminderArgs,
+): Promise<unknown> {
+  const link = `${client.appUrl}/invoice/${args.invoice_id}`;
+  await client.post(
+    `/api/private/tenants/invoicing/invoices/${args.invoice_id}/share`,
+    {
+      method: "email",
+      email: args.customer_email,
+      invoice_link: link,
+      include_reminder: true,
+    },
+  );
+  return {
+    ok: true,
+    reminded: args.customer_email,
+    invoice_number: args.invoice_number,
+    pay_link: link,
+  };
+}
+
 // ---- action tools (approval-gated) ----------------------------------------
 
 export interface InvoiceItemArg {
@@ -142,6 +195,67 @@ export interface CreateInvoiceArgs {
 
 function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
+}
+
+function normalize(s: string): string {
+  return String(s).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+/**
+ * Deterministic price grounding: every invoice line must resolve to a real
+ * catalog product, and the catalog price ALWAYS wins over whatever the model
+ * put in unit_price. The model cannot invent products or prices.
+ * Items that don't match anything are rejected back to the model.
+ */
+export async function groundInvoiceArgs(
+  client: ImpalaFlowClient,
+  args: CreateInvoiceArgs,
+): Promise<{ ok: true; args: CreateInvoiceArgs } | { ok: false; error: string }> {
+  const data = await client.get("/api/private/products", {
+    limit: 100,
+    offset: 0,
+  });
+  const catalog = itemsOf(data).map((p: any) => ({
+    name: String(p.name ?? ""),
+    norm: normalize(p.name ?? ""),
+    price: Number(p.price),
+  }));
+
+  const grounded: InvoiceItemArg[] = [];
+  const unmatched: string[] = [];
+  for (const item of args.items ?? []) {
+    const wanted = normalize(item.name);
+    // exact -> substring -> token-overlap (>= half the product's words in common)
+    const fallback =
+      catalog.find((p) => p.norm === wanted) ??
+      catalog.find((p) => p.norm.includes(wanted) || wanted.includes(p.norm)) ??
+      catalog.find((p) => {
+        const a = new Set(wanted.split(" "));
+        const b = p.norm.split(" ");
+        const common = b.filter((w) => a.has(w)).length;
+        return common >= Math.max(1, Math.ceil(b.length / 2));
+      });
+    if (!fallback) {
+      unmatched.push(item.name);
+      continue;
+    }
+    grounded.push({
+      name: fallback.name,
+      description: item.description,
+      quantity: item.quantity,
+      unit_price: fallback.price,
+    });
+  }
+
+  if (unmatched.length) {
+    return {
+      ok: false,
+      error:
+        `These items are not in the catalog: ${unmatched.join(", ")}. ` +
+        `Use list_products to find the exact product names, and only invoice real products.`,
+    };
+  }
+  return { ok: true, args: { ...args, items: grounded } };
 }
 
 function invoiceTotal(items: InvoiceItemArg[]): number {
@@ -276,6 +390,14 @@ export interface ToolDef {
   requiresApproval?: boolean;
   /** Builds the human-readable preview shown at the approval gate. */
   preview?: (args: any) => string;
+  /**
+   * Deterministic validation/correction of args against live data, run BEFORE
+   * the approval preview. Returns corrected args or an error for the model.
+   */
+  ground?: (
+    client: ImpalaFlowClient,
+    args: any,
+  ) => Promise<{ ok: true; args: any } | { ok: false; error: string }>;
 }
 
 export const REGISTRY: Record<string, ToolDef> = {
@@ -286,9 +408,18 @@ export const REGISTRY: Record<string, ToolDef> = {
   list_campaigns: { run: (c) => listCampaigns(c) },
   donation_stats: { run: (c) => donationStats(c) },
   list_smart_forms: { run: (c) => listSmartForms(c) },
+  list_unpaid_invoices: { run: (c) => listUnpaidInvoices(c) },
   create_invoice: {
     run: (c, a) => createInvoice(c, a),
     requiresApproval: true,
     preview: (a) => previewInvoice(a),
+    ground: (c, a) => groundInvoiceArgs(c, a),
+  },
+  send_invoice_reminder: {
+    run: (c, a) => sendInvoiceReminder(c, a),
+    requiresApproval: true,
+    preview: (a) =>
+      `PAYMENT REMINDER → ${a.customer_email}` +
+      (a.invoice_number ? ` for invoice ${a.invoice_number}` : ""),
   },
 };

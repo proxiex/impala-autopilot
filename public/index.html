@@ -157,7 +157,7 @@ const API_BASE = /^https?:$/.test(location.protocol) ? "" : "http://localhost:87
 const HINTS = [
   { group: "Business", items: ["How is my business doing this week?", "Any overdue invoices?"] },
   { group: "Catalog", items: ["What's in my catalog?", "Which items are low on stock?"] },
-  { group: "Invoicing", items: ["Invoice Ama (ama.demo@gmail.com) for 2 Bag of Rice 25kg"] },
+  { group: "Invoicing", items: ["Invoice Ama (ama.demo@gmail.com) for 2 Bag of Rice 25kg", "Chase my unpaid invoices"] },
   { group: "Contacts", items: ["Find the contact named Kwame"] },
   { group: "Fundraising", items: ["How are my donation campaigns doing?"] },
   { group: "Forms", items: ["List my smart forms and their submissions"] },
@@ -295,7 +295,9 @@ async function send(text) {
     const data = await api("/agent/chat", { message: msg, history, channel: "dashboard" });
     th.remove();
     if (data.answer) addBubble("bot", data.answer);
-    if (data.blocks && data.blocks.length) renderBlocks(data.blocks);
+    // When an approval card is coming, skip the lookup-noise blocks — the
+    // proposal preview is the thing to read.
+    if (data.blocks && data.blocks.length && !data.proposal) renderBlocks(data.blocks);
     history.push({ role: "user", content: msg });
     history.push({ role: "assistant", content: data.answer || "" });
     if (data.proposal) addProposal(data.proposal);
