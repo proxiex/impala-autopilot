@@ -339,6 +339,15 @@ async function apiGet(path) {
 
 function esc(s) { return String(s).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c])); }
 
+// "171320.00" -> "171,320" · "8.50" -> "8.50" · "NGN" stays as-is.
+function fmtNum(v) {
+  if (typeof v !== "number" && !(typeof v === "string" && /^-?\d+(\.\d+)?$/.test(v.trim()))) return v;
+  const n = Number(v);
+  if (!isFinite(n)) return v;
+  const hasCents = Math.round(n * 100) % 100 !== 0;
+  return n.toLocaleString("en", { minimumFractionDigits: hasCents ? 2 : 0, maximumFractionDigits: 2 });
+}
+
 // Minimal safe markdown: escape first, then bold/italic/code/links/bullets.
 // Only http(s) hrefs survive; broken image syntax degrades to a plain link.
 function md(s) {
@@ -540,7 +549,7 @@ function renderProducts(b) {
     const img = p.image_url
       ? `<div class="pimg" style="background-image:url('${esc(p.image_url)}')"></div>`
       : `<div class="pimg placeholder">${esc(String(p.name || "?").slice(0, 1))}</div>`;
-    const price = (b.currency ? esc(b.currency) + " " : "") + esc(p.price);
+    const price = (b.currency ? esc(b.currency) + " " : "") + esc(fmtNum(p.price));
     const stock = (p.stock === null || p.stock === undefined)
       ? "" : `<span class="pstock">${esc(p.stock)} in stock</span>`;
     card.innerHTML = `${img}<div class="pmeta"><div class="pname">${esc(p.name)}</div>` +
@@ -557,7 +566,7 @@ function renderStats(b) {
   Object.entries(b.stats || {}).forEach(([k, v]) => {
     if (v === null || typeof v === "object") return;
     const tile = document.createElement("div"); tile.className = "stile";
-    tile.innerHTML = `<div class="sval">${esc(v)}</div><div class="skey">${esc(String(k).replace(/_/g, " "))}</div>`;
+    tile.innerHTML = `<div class="sval">${esc(fmtNum(v))}</div><div class="skey">${esc(String(k).replace(/_/g, " "))}</div>`;
     grid.appendChild(tile);
   });
   wrap.appendChild(grid); $("stream").appendChild(wrap);
