@@ -212,6 +212,52 @@ export async function customerHistory(
   };
 }
 
+export interface CreateContactArgs {
+  first_name: string;
+  last_name?: string;
+  email: string;
+  phone?: string;
+  city?: string;
+  region?: string;
+}
+
+export function previewContact(a: CreateContactArgs): string {
+  const name = [a.first_name, a.last_name].filter(Boolean).join(" ");
+  const bits = [a.email, a.phone, [a.city, a.region].filter(Boolean).join(", ")]
+    .filter(Boolean)
+    .join(" · ");
+  return `ADD CONTACT → ${name}\n  ${bits}`;
+}
+
+/** Create a contact in the merchant's CRM. Approval-gated. */
+export async function createContact(
+  client: ImpalaFlowClient,
+  args: CreateContactArgs,
+): Promise<unknown> {
+  const tenant = client.resolveTenantId();
+  if (!tenant) return { error: "Could not resolve the tenant id." };
+  const created: any = await client.post(
+    `/api/private/tenants/${tenant}/contacts`,
+    {
+      first_name: (args.first_name ?? "").trim(),
+      last_name: (args.last_name ?? "").trim(),
+      email: (args.email ?? "").trim(),
+      phone: (args.phone ?? "").trim(),
+      region: (args.region ?? "").trim(),
+      city: (args.city ?? "").trim(),
+    },
+  );
+  return {
+    ok: true,
+    contact: {
+      id: created?.id,
+      name: [args.first_name, args.last_name].filter(Boolean).join(" "),
+      email: args.email,
+      phone: args.phone ?? null,
+    },
+  };
+}
+
 export interface BulkProductArg {
   name: string;
   price: number;
@@ -552,6 +598,11 @@ export const REGISTRY: Record<string, ToolDef> = {
   list_smart_forms: { run: (c) => listSmartForms(c) },
   list_unpaid_invoices: { run: (c) => listUnpaidInvoices(c) },
   customer_history: { run: (c, a) => customerHistory(c, a) },
+  create_contact: {
+    run: (c, a) => createContact(c, a),
+    requiresApproval: true,
+    preview: (a) => previewContact(a),
+  },
   bulk_create_products: {
     run: (c, a) => bulkCreateProducts(c, a),
     requiresApproval: true,

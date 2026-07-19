@@ -55,6 +55,8 @@
     white-space: pre-wrap; }
   .msg.user .bubble { background: var(--purple); color: #fff; border-bottom-right-radius: 4px; }
   .msg.bot .bubble { background: var(--card); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+  .bubble a { color: var(--purple); font-weight: 600; }
+  .bubble code { background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; font-size: 13px; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
 
   .thinking .bubble { color: var(--muted); }
   .thinking .dots span { animation: blink 1.2s infinite both; }
@@ -184,12 +186,31 @@ async function api(path, body) {
 }
 
 function esc(s) { return String(s).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c])); }
+
+// Minimal safe markdown: escape first, then bold/italic/code/links/bullets.
+// Only http(s) hrefs survive; broken image syntax degrades to a plain link.
+function md(s) {
+  let t = esc(s);
+  t = t.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (_, a, u) => mdLink(a || u, u));
+  t = t.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, a, u) => mdLink(a, u));
+  t = t.replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g, (_, p, u) => p + mdLink(u, u));
+  t = t.replace(/`([^`]+)`/g, "<code>$1</code>");
+  t = t.replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
+  t = t.replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<i>$2</i>");
+  t = t.replace(/^[ \t]*[-•]\s+(.+)$/gm, "•&nbsp;$1");
+  return t;
+}
+function mdLink(label, url) {
+  if (!/^https?:\/\//i.test(url)) return label;
+  return `<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+}
 function scroll() { const s = document.querySelector(".stream"); s.scrollTop = s.scrollHeight; }
 
 function addBubble(who, text) {
   const row = document.createElement("div");
   row.className = "msg " + who;
-  row.innerHTML = `<div class="bubble">${esc(text)}</div>`;
+  const body = who === "bot" ? md(text) : esc(text);
+  row.innerHTML = `<div class="bubble">${body}</div>`;
   $("stream").appendChild(row); scroll();
   return row;
 }
@@ -231,6 +252,14 @@ function renderResult(r) {
     div.innerHTML = `✅ Invoice <b>${esc(r.invoice_number || "")}</b> — ${esc(r.currency || "")} ${esc(r.total)}` +
       ` · status <b>${esc(r.status)}</b>` + (r.sent ? " · sent to customer" : "") +
       `<br><a href="${esc(r.pay_link)}" target="_blank" rel="noopener">Open pay link →</a>`;
+  } else if (r && r.contact) {
+    div.innerHTML = `✅ Contact added: <b>${esc(r.contact.name)}</b>` +
+      ` — ${esc(r.contact.email)}${r.contact.phone ? " · " + esc(r.contact.phone) : ""}`;
+  } else if (r && r.created_count !== undefined) {
+    div.innerHTML = `✅ Created <b>${esc(r.created_count)}</b> products` +
+      (r.failed && r.failed.length ? ` · ${r.failed.length} failed` : "");
+  } else if (r && r.declined === undefined && r.ok !== undefined) {
+    div.textContent = r.ok ? "✅ Done." : "⚠ Something went wrong.";
   } else {
     div.textContent = "Done: " + JSON.stringify(r);
   }

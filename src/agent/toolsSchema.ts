@@ -149,6 +149,28 @@ export const TOOLS: Tool[] = [
   {
     type: "function",
     function: {
+      name: "create_contact",
+      description:
+        "Add a new contact/customer to the merchant's CRM. Check " +
+        "search_contacts or customer_history first to avoid duplicates. The " +
+        "merchant approves before the contact is created.",
+      parameters: {
+        type: "object",
+        properties: {
+          first_name: { type: "string" },
+          last_name: { type: "string" },
+          email: { type: "string" },
+          phone: { type: "string" },
+          city: { type: "string" },
+          region: { type: "string" },
+        },
+        required: ["first_name", "email"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "bulk_create_products",
       description:
         "Create MANY products in the catalog at once. Use when the merchant " +
