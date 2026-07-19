@@ -152,7 +152,16 @@ const $ = (id) => document.getElementById(id);
 
 // Same-origin when served over http(s); fall back to a local base when the page
 // is opened without an http origin (e.g. a preview panel using srcdoc/file://).
-const API_BASE = /^https?:$/.test(location.protocol) ? "" : "http://localhost:8787";
+// Same-origin when served by the agent service itself (FC, localhost);
+// otherwise (GitHub Pages, previews) talk to the deployed API on Alibaba Cloud.
+const DEPLOYED_API = "https://impala-utopilot-seirlydawn.ap-southeast-1.fcapp.run";
+const API_BASE = (() => {
+  if (!/^https?:$/.test(location.protocol)) return "http://localhost:8787";
+  const h = location.hostname;
+  return h.endsWith("fcapp.run") || h === "localhost" || h === "127.0.0.1"
+    ? ""
+    : DEPLOYED_API;
+})();
 
 const HINTS = [
   { group: "Business", items: ["How is my business doing this week?", "Any overdue invoices?"] },
