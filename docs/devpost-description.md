@@ -7,7 +7,7 @@
 **Links to fill in the form:**
 - Repo: https://github.com/proxiex/impala-autopilot
 - Proof of Alibaba Cloud (code file): https://github.com/proxiex/impala-autopilot/blob/main/src/llm/client.ts
-- Live demo: https://impala-utopilot-seirlydawn.ap-southeast-1.fcapp.run (demo login in the README)
+- Live demo: https://proxiex.github.io/impala-autopilot/ (demo login in the README; the agent API behind it runs on Alibaba Cloud Function Compute: https://impala-utopilot-seirlydawn.ap-southeast-1.fcapp.run/health)
 - Video: (YouTube URL after upload)
 - Blog: (URL after publishing docs/blog-post.md)
 

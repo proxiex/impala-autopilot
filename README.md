@@ -8,8 +8,9 @@ A customer writes *"abeg send invoice give Ada for 2 bag of rice"* — in Englis
 
 ## Try it in 30 seconds (no install)
 
-**Live demo (deployed on Alibaba Cloud Function Compute):**
-👉 **https://impala-utopilot-seirlydawn.ap-southeast-1.fcapp.run**
+**Live demo:** 👉 **https://proxiex.github.io/impala-autopilot/**
+
+(The UI is a static page on GitHub Pages; every agent request it makes runs on **Alibaba Cloud Function Compute** at `https://impala-utopilot-seirlydawn.ap-southeast-1.fcapp.run` — try its [`/health`](https://impala-utopilot-seirlydawn.ap-southeast-1.fcapp.run/health). FC's default domain forces file downloads on page loads, so the page itself is hosted on Pages.)
 
 Sign in with the demo store (a disposable test tenant in Ghana, GHS):
 - Email: `difrentecho+autopilot@gmail.com`
