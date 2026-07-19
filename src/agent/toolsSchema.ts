@@ -129,6 +129,56 @@ export const TOOLS: Tool[] = [
   {
     type: "function",
     function: {
+      name: "customer_history",
+      description:
+        "Recall everything about a customer: contact record, past invoices and " +
+        "orders, total billed/paid, and what they still owe. Use it whenever the " +
+        "merchant asks about a customer, or a returning customer is mentioned.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description: "Customer name or email (min 3 chars).",
+          },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "bulk_create_products",
+      description:
+        "Create MANY products in the catalog at once. Use when the merchant " +
+        "pastes a CSV, a price list, or any messy stock list — parse it into " +
+        "structured products first (name + price required; stock and description " +
+        "when present). The merchant approves the full list before creation.",
+      parameters: {
+        type: "object",
+        properties: {
+          products: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                name: { type: "string" },
+                price: { type: "number" },
+                stock: { type: "number" },
+                description: { type: "string" },
+              },
+              required: ["name", "price"],
+            },
+          },
+        },
+        required: ["products"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "create_invoice",
       description:
         "Draft and issue an invoice to a customer. Look up real product prices " +

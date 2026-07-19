@@ -119,6 +119,148 @@ export async function listSmartForms(client: ImpalaFlowClient): Promise<unknown>
   return { count: forms.length, forms };
 }
 
+export async function customerHistory(
+  client: ImpalaFlowClient,
+  args: { query?: string },
+): Promise<unknown> {
+  const query = (args.query ?? "").trim();
+  if (query.length < 3) {
+    return { error: "Provide a customer name or email of at least 3 characters." };
+  }
+  const q = normalize(query);
+  const matches = (v: unknown) => normalize(String(v ?? "")).includes(q);
+
+  // Contact record (best-effort — memory works even without one)
+  let contact: any = null;
+  const tenant = client.resolveTenantId();
+  if (tenant) {
+    try {
+      const found = await client.get(
+        `/api/private/account/${tenant}/contacts/search`,
+        { query },
+      );
+      const c = itemsOf(found)[0];
+      if (c) {
+        contact = {
+          name: [c.first_name, c.last_name].filter(Boolean).join(" ") || c.email,
+          email: c.email,
+          phone: c.phone,
+          status: c.status,
+        };
+      }
+    } catch {
+      /* contact lookup is optional */
+    }
+  }
+
+  // Invoice history
+  const invData = await client.get("/api/private/tenants/invoicing/invoices");
+  const invoices = itemsOf(invData)
+    .filter(
+      (inv: any) =>
+        matches(inv.client_name ?? inv.customer_name) ||
+        matches(inv.client_email ?? inv.customer_email),
+    )
+    .map((inv: any) => ({
+      invoice_number: inv.invoice_number,
+      amount: Number(inv.amount ?? inv.total ?? 0),
+      currency: inv.currency,
+      status: inv.status,
+      issue_date: inv.issue_date,
+    }));
+
+  // Order history
+  let orders: any[] = [];
+  try {
+    const ordData = await client.get("/api/private/orders");
+    orders = itemsOf(ordData)
+      .filter((o: any) => {
+        const c = o.customer ?? {};
+        return (
+          matches([c.first_name, c.last_name].filter(Boolean).join(" ")) ||
+          matches(c.email)
+        );
+      })
+      .map((o: any) => ({
+        order_id: o.id,
+        total: o.total,
+        currency: o.currency,
+        status: o.status,
+        created_at: o.created_at,
+      }));
+  } catch {
+    /* orders are optional */
+  }
+
+  const paidStatuses = new Set(["paid"]);
+  const totalBilled = invoices.reduce((s, i) => s + i.amount, 0);
+  const totalPaid = invoices
+    .filter((i) => paidStatuses.has(String(i.status).toLowerCase()))
+    .reduce((s, i) => s + i.amount, 0);
+
+  if (!contact && invoices.length === 0 && orders.length === 0) {
+    return { found: false, note: `No history for "${query}".` };
+  }
+  return {
+    found: true,
+    contact,
+    invoices,
+    orders,
+    total_billed: totalBilled,
+    total_paid: totalPaid,
+    outstanding: totalBilled - totalPaid,
+  };
+}
+
+export interface BulkProductArg {
+  name: string;
+  price: number;
+  stock?: number;
+  description?: string;
+}
+
+export function previewBulkProducts(args: { products: BulkProductArg[] }): string {
+  const rows = (args.products ?? []).map(
+    (p) =>
+      `  • ${p.name} @ ${Number(p.price).toLocaleString()}` +
+      (p.stock !== undefined && p.stock !== null ? ` (stock ${p.stock})` : ""),
+  );
+  return [`CREATE ${rows.length} PRODUCTS in the catalog:`, ...rows].join("\n");
+}
+
+/** Create many products at once (from a pasted CSV/stock list). Approval-gated. */
+export async function bulkCreateProducts(
+  client: ImpalaFlowClient,
+  args: { products: BulkProductArg[] },
+): Promise<unknown> {
+  const created: any[] = [];
+  const failed: any[] = [];
+  for (const p of args.products ?? []) {
+    const payload = {
+      name: p.name,
+      price: Number(p.price),
+      item_type: "product",
+      description: p.description ?? "",
+      stock: p.stock ?? null,
+      track_inventory: p.stock !== undefined && p.stock !== null,
+      charge_tax: false,
+      requires_shipping: true,
+    };
+    try {
+      const res: any = await client.post("/api/private/products", payload);
+      created.push({
+        id: res?.id,
+        name: p.name,
+        price: Number(p.price),
+        stock: p.stock ?? null,
+      });
+    } catch (err: any) {
+      failed.push({ name: p.name, error: String(err?.message ?? err).slice(0, 120) });
+    }
+  }
+  return { ok: failed.length === 0, created_count: created.length, created, failed };
+}
+
 export async function listUnpaidInvoices(
   client: ImpalaFlowClient,
 ): Promise<unknown> {
@@ -409,6 +551,12 @@ export const REGISTRY: Record<string, ToolDef> = {
   donation_stats: { run: (c) => donationStats(c) },
   list_smart_forms: { run: (c) => listSmartForms(c) },
   list_unpaid_invoices: { run: (c) => listUnpaidInvoices(c) },
+  customer_history: { run: (c, a) => customerHistory(c, a) },
+  bulk_create_products: {
+    run: (c, a) => bulkCreateProducts(c, a),
+    requiresApproval: true,
+    preview: (a) => previewBulkProducts(a),
+  },
   create_invoice: {
     run: (c, a) => createInvoice(c, a),
     requiresApproval: true,

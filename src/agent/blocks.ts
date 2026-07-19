@@ -77,6 +77,38 @@ export function toBlocks(
           });
         }
         break;
+      case "customer_history":
+        if (r.found) {
+          const items: ListItem[] = [];
+          if (r.contact) {
+            items.push({
+              title: r.contact.name,
+              subtitle: [r.contact.email, r.contact.phone].filter(Boolean).join(" · "),
+              badge: r.contact.status,
+            });
+          }
+          for (const inv of r.invoices ?? []) {
+            items.push({
+              title: `Invoice ${inv.invoice_number}`,
+              subtitle: `${inv.currency ?? ""} ${inv.amount} · ${inv.issue_date ?? ""}`,
+              badge: inv.status,
+            });
+          }
+          if (items.length) {
+            blocks.push({ type: "list", title: "Customer history", items });
+          }
+        }
+        break;
+      case "bulk_create_products":
+        if (r.created?.length) {
+          blocks.push({
+            type: "products",
+            title: `Created ${r.created_count} products`,
+            currency: currency ?? undefined,
+            items: r.created,
+          });
+        }
+        break;
       case "list_unpaid_invoices":
         if (r.unpaid?.length) {
           blocks.push({
