@@ -1,91 +1,89 @@
 # ImpalaFlow Autopilot
 
-**An AI operations agent for African micro-merchants.** It reads a merchant's live
-ImpalaFlow business data and (soon) takes actions on their behalf — drafting quotes and
-invoices, following up on leads, running campaigns — with the merchant approving anything
-that goes out. Built on **Qwen** models running on **Alibaba Cloud**.
+**An AI employee for African micro-merchants — it sells, bills, chases payments, and remembers every customer.** Built on **Qwen (Alibaba Cloud)**, plugged into [ImpalaFlow](https://impalaflow.com), a live commerce SaaS with real merchants.
 
-> Submission for the Global AI Hackathon with Qwen Cloud — **Track 4: Autopilot Agent**.
+> Global AI Hackathon with Qwen Cloud — **Track 4: Autopilot Agent**
 
-## What makes it real
+A customer writes *"abeg send invoice give Ada for 2 bag of rice"* — in English, Pidgin, Swahili, or French, however they actually type. The Autopilot looks up the merchant's **real catalog and stock**, drafts the invoice at **real prices**, and stops at an **approval card**. One tap from the merchant and the invoice is issued, emailed, and payable via Paystack. That's the whole idea: an agent that *runs the business*, with the human approving anything that leaves the building.
 
-It is not a chatbot bolted onto a demo. The agent drives the **same REST API the ImpalaFlow
-dashboard already uses** (`api.impalaflow.com`) — the exact endpoints behind Orders,
-Invoicing, Contacts, Donations, and Marketing. So when it answers "how's business?" or drafts
-an invoice, it's operating on the merchant's real catalog, stock, and sales.
+## Try it in 30 seconds (no install)
+
+**Live demo (deployed on Alibaba Cloud Function Compute):**
+👉 **https://impala-utopilot-seirlydawn.ap-southeast-1.fcapp.run**
+
+Sign in with the demo store (a disposable test tenant in Ghana, GHS):
+- Email: `difrentecho+autopilot@gmail.com`
+- Password: `Password#0`
+
+Things to ask it:
+- *How is my business doing this week?*
+- *Invoice Ama (ama.demo@gmail.com) for 2 Bag of Rice 25kg* → approve the card it shows you
+- *Chase my unpaid invoices*
+- *What's my history with Efua?*
+- Paste a messy price list: *"add these: sardine tin 12, peak milk small - 8.5, indomie carton 85 (stock 25)"*
 
 ## Architecture
 
-```
-WhatsApp customer ─┐
-                   ├─► Autopilot agent service (this repo, on Alibaba Cloud)
-Merchant dashboard ┘        ├ Orchestrator: Qwen tool-calling loop (qwen-max)
-                            ├ Approval gate: merchant signs off on outward actions
-                            ├ Memory: per-customer / per-merchant
-                            └ Qwen via DashScope: qwen-max / qwen-vl-max / qwen-turbo
-                                     │
-                                     ▼
-                   ImpalaFlow API (existing) — products · orders · invoicing ·
-                   donations · contacts · marketing
-```
+![Architecture](docs/architecture.svg)
 
-**Proof of Alibaba Cloud:** all model calls go through Alibaba Cloud Model Studio (DashScope).
-See [`src/llm/client.ts`](src/llm/client.ts).
+- **Agent service** (this repo, Node + TypeScript): a Qwen function-calling loop over 12 business tools, an approval gate, a deterministic grounding layer, and customer memory. Runs on **Alibaba Cloud Function Compute** (Singapore).
+- **Models**: **Qwen via Alibaba Cloud Model Studio (DashScope)** — see [`src/llm/client.ts`](src/llm/client.ts) (*proof of Alibaba Cloud usage: every model call goes through DashScope*).
+- **The business layer is real**: the agent drives the same REST API the ImpalaFlow dashboard uses — products, orders, invoicing, donations, contacts, forms — with **zero backend changes**. Payments settle through Paystack.
 
-**Stack:** Node + TypeScript (ESM), the OpenAI SDK pointed at DashScope, native `fetch` for
-the ImpalaFlow API. No framework yet — the HTTP service layer lands with the approval gate.
-
-## Model routing (cost control)
+### Model routing
 
 | Job | Model |
 |-----|-------|
-| Orchestration reasoning | `qwen-max` (demo) / `qwen-plus` (dev) |
-| Routing, extraction, classification | `qwen-turbo` |
-| Photo → product matching | `qwen-vl-max` |
+| Orchestration & reasoning (demo) | `qwen-max` |
+| Development / cheaper iteration | `qwen-plus` |
+| High-volume routing & classification (configurable) | `qwen-turbo` |
+| Photo → product matching (roadmap) | `qwen-vl-max` |
 
-## Setup
+### Engineering choices judges may care about
 
-Requires Node 18+ (`.nvmrc` pins 22 — run `nvm use`).
+1. **Deterministic price grounding.** LLMs invent plausible prices; ours *can't ship one*. Before any invoice reaches the approval preview, every line item is validated against the live catalog — catalog names and prices always win, unknown items bounce back to the model with instructions. The same grounding runs again at execution time (defense in depth), including through MCP.
+2. **Propose → approve, default-deny.** Actions (create invoice, send reminder, bulk-create products) never execute directly from model output. The loop captures a proposal with a human-readable preview; a separate authenticated call executes it. No approver present → the action simply doesn't run.
+3. **Multi-tenant token mode.** The service holds no merchant credentials. Every request carries the merchant's own short-lived token; the agent acts *as that merchant*, and tenant isolation is enforced by the platform's existing auth.
+4. **Memory grounded in business data.** "What's my history with Ada?" is answered from live contacts, invoices, and orders — recall that is always true, with no separate store to drift out of sync.
+5. **Channel-aware output.** The same agent returns render-ready JSON blocks (product cards, stat tiles, lists) to the dashboard, and clean prose to text channels.
+6. **MCP server.** `npm run mcp` exposes all 12 tools over the Model Context Protocol — Claude Desktop or any MCP client can operate an ImpalaFlow store (with the client's own per-call approval prompts keeping the human in the loop).
+
+## Run it yourself
+
+Requires Node 18+ (`.nvmrc` pins 22).
 
 ```bash
-cp .env.example .env      # fill in DASHSCOPE_API_KEY + ImpalaFlow login
+git clone https://github.com/proxiex/impala-autopilot.git
+cd impala-autopilot
 npm install
-npm run chat              # interactive chat against your live tenant
+cp .env.example .env   # add your DashScope API key + an ImpalaFlow login
+npm run serve          # dashboard + API on http://localhost:8787
 ```
 
-Single-shot:
+Other entry points:
 
 ```bash
+npm run chat           # interactive CLI (y/N approval prompts)
 npm run chat -- "how much stock of rice do I have?"
+npm run mcp            # MCP server over stdio (12 tools)
+npm run seed           # seed sample products into the tenant
+npm run typecheck
 ```
 
-### Run the dashboard
+## Deploying on Alibaba Cloud
 
-```bash
-npm run serve            # dashboard + API on http://localhost:8787
-```
+The service ships as a container (see [`Dockerfile`](Dockerfile)) and runs on **Function Compute** — full walkthrough in [`DEPLOY.md`](DEPLOY.md). The live demo above is that exact setup: FC (Singapore) pulling `proxiex/impala-autopilot`, calling Qwen through DashScope.
 
-Open **http://localhost:8787**, sign in with an ImpalaFlow account, and chat — every action
-comes back as an approval card you confirm before it runs. Endpoints (multi-tenant; each
-request carries the merchant's bearer token):
-- `POST /auth/login` `{ email, password }` → `{ access_token, ... }`
-- `POST /agent/chat` `{ message, history }` → `{ answer, proposal }` (a proposed action is **not** executed)
-- `POST /agent/approve` `{ proposal }` → executes the approved action
+## Security notes
 
-Deploying on Alibaba Cloud: see [DEPLOY.md](DEPLOY.md).
+- No credentials are stored by the service — token mode end to end; the demo login above is a disposable test store.
+- Secrets live in runtime env vars (never in the image or repo).
+- Every outward-facing action requires explicit human approval; price grounding makes invented invoices impossible.
+- The agent never touches payment/payout configuration.
 
-## Status
+## What's next (post-hackathon)
 
-Working end to end against the live ImpalaFlow API (verified on a Ghana test store):
-- Authenticated client (form login + Bearer + refresh) plus **token mode** for the service.
-- Qwen tool-calling loop: reads (`list_products`, `order_stats`, `invoice_stats`) + the action
-  `create_invoice` (create → issue → email the customer → pay link), currency-aware.
-- **Human approval gate** — actions never run without approval.
-- **CLI** (`npm run chat`) and **HTTP service** (`npm run serve`), both with propose → approve.
-
-Next: the dashboard Autopilot inbox in IF-FE, more action tools (payment recovery, marketing,
-donations), and `qwen-vl-max` photo→product. See
-[`../IF-FE/docs/autopilot-agent-plan.md`](../IF-FE/docs/autopilot-agent-plan.md).
+This ships to real ImpalaFlow merchants: WhatsApp as a customer channel, `qwen-vl-max` photo→product quoting, marketing campaign drafting, and payment-recovery loops running on a schedule.
 
 ## License
 
