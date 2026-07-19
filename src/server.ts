@@ -78,6 +78,26 @@ app.post("/auth/login", async (req, reply) => {
   }
 });
 
+// Lightweight store context for the UI: currency + can-they-get-paid.
+app.get("/merchant/context", async (req, reply) => {
+  const client = ImpalaFlowClient.fromToken(settings, {
+    accessToken: tokenFrom(req),
+  });
+  const currency = await client.fetchDefaultCurrency();
+  let payment: any = null;
+  try {
+    payment = await client.get(
+      "/api/private/tenants/invoicing/payment-collection/status",
+    );
+  } catch {
+    /* optional */
+  }
+  return {
+    currency,
+    payment_ready: !!(payment?.is_enabled && payment?.is_verified),
+  };
+});
+
 interface ChatBody {
   message?: string;
   history?: ChatCompletionMessageParam[];

@@ -62,6 +62,21 @@ export function toBlocks(
           });
         }
         break;
+      case "list_contacts":
+        if (r.contacts?.length) {
+          blocks.push({
+            type: "list",
+            title: `Customers (${r.count})`,
+            items: r.contacts.map(
+              (c: any): ListItem => ({
+                title: c.name,
+                subtitle: [c.email, c.phone].filter(Boolean).join(" · "),
+                badge: c.status,
+              }),
+            ),
+          });
+        }
+        break;
       case "search_contacts":
         if (r.contacts?.length) {
           blocks.push({

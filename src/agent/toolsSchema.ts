@@ -69,6 +69,33 @@ export const TOOLS: Tool[] = [
   {
     type: "function",
     function: {
+      name: "list_contacts",
+      description:
+        "List ALL of the merchant's contacts/customers (no search term needed). " +
+        "Use when the merchant asks to see their customers or contacts.",
+      parameters: {
+        type: "object",
+        properties: {
+          limit: { type: "integer", description: "Max contacts (default 50)." },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "payment_setup_status",
+      description:
+        "Check whether the store can RECEIVE online payments (Paystack payment " +
+        "collection configured). Use when the merchant asks about getting paid, " +
+        "when payments seem missing, or to advise a new store owner on setup.",
+      parameters: { type: "object", properties: {}, required: [] },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "list_campaigns",
       description:
         "List the merchant's donation/fundraising campaigns (ImpalaGive) with " +

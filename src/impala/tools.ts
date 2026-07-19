@@ -64,6 +64,40 @@ export async function invoiceStats(client: ImpalaFlowClient): Promise<unknown> {
   return { stats: data };
 }
 
+/**
+ * Contact search with token fallback: the backend matches per-field, so a full
+ * name like "Salem Longshak" can return zero results. If the full query
+ * misses, retry with each name token and merge unique results.
+ */
+async function searchContactsSmart(
+  client: ImpalaFlowClient,
+  query: string,
+): Promise<any[]> {
+  const tenant = client.resolveTenantId();
+  if (!tenant) return [];
+  const seen = new Map<string, any>();
+  const tryQuery = async (q: string) => {
+    if (q.length < 3) return;
+    try {
+      const data = await client.get(
+        `/api/private/account/${tenant}/contacts/search`,
+        { query: q },
+      );
+      for (const c of itemsOf(data)) {
+        const id = c.id ?? c.contact_id ?? c.email;
+        if (id && !seen.has(id)) seen.set(id, c);
+      }
+    } catch {
+      /* individual query failures are fine */
+    }
+  };
+  await tryQuery(query);
+  if (seen.size === 0 && /\s/.test(query)) {
+    for (const token of query.split(/\s+/)) await tryQuery(token);
+  }
+  return [...seen.values()];
+}
+
 export async function searchContacts(
   client: ImpalaFlowClient,
   args: { query?: string },
@@ -74,11 +108,8 @@ export async function searchContacts(
   if (query.length < 3) {
     return { error: "Provide a search term of at least 3 characters." };
   }
-  const data = await client.get(
-    `/api/private/account/${tenant}/contacts/search`,
-    { query },
-  );
-  const contacts = itemsOf(data).map((c: any) => ({
+  const found = await searchContactsSmart(client, query);
+  const contacts = found.map((c: any) => ({
     id: c.id,
     name: [c.first_name, c.last_name].filter(Boolean).join(" ") || c.email,
     email: c.email,
@@ -86,6 +117,47 @@ export async function searchContacts(
     status: c.status,
   }));
   return { count: contacts.length, contacts };
+}
+
+/** List all contacts/customers (the dashboard's own home payload). */
+export async function listContacts(
+  client: ImpalaFlowClient,
+  args: { limit?: number } = {},
+): Promise<unknown> {
+  const tenant = client.resolveTenantId();
+  if (!tenant) return { error: "No tenant id available for this session." };
+  const data = await client.get(`/api/private/${tenant}/home`);
+  const all = (data?.tenant?.contacts ?? []).map((c: any) => ({
+    id: c.id,
+    name: [c.first_name, c.last_name].filter(Boolean).join(" ") || c.email,
+    email: c.email,
+    phone: c.phone,
+    status: c.status,
+  }));
+  return { count: all.length, contacts: all.slice(0, args.limit ?? 50) };
+}
+
+/**
+ * Whether the store can actually RECEIVE money: Paystack payment collection
+ * must be configured or invoice pay links cannot accept payment.
+ */
+export async function paymentSetupStatus(
+  client: ImpalaFlowClient,
+): Promise<unknown> {
+  const s: any = await client.get(
+    "/api/private/tenants/invoicing/payment-collection/status",
+  );
+  const ready = !!(s?.is_enabled && s?.is_verified);
+  return {
+    ready,
+    is_enabled: !!s?.is_enabled,
+    is_verified: !!s?.is_verified,
+    account_type: s?.account_type ?? null,
+    bank_name: s?.bank_name ?? null,
+    note: ready
+      ? "Payment collection is configured — invoice pay links can accept payments."
+      : "Payment collection is NOT set up: invoices can be sent, but customers cannot pay online until the merchant configures payment collection (bank or mobile money) in the ImpalaFlow dashboard under Invoicing → Payment settings.",
+  };
 }
 
 export async function listCampaigns(client: ImpalaFlowClient): Promise<unknown> {
@@ -132,25 +204,18 @@ export async function customerHistory(
 
   // Contact record (best-effort — memory works even without one)
   let contact: any = null;
-  const tenant = client.resolveTenantId();
-  if (tenant) {
-    try {
-      const found = await client.get(
-        `/api/private/account/${tenant}/contacts/search`,
-        { query },
-      );
-      const c = itemsOf(found)[0];
-      if (c) {
-        contact = {
-          name: [c.first_name, c.last_name].filter(Boolean).join(" ") || c.email,
-          email: c.email,
-          phone: c.phone,
-          status: c.status,
-        };
-      }
-    } catch {
-      /* contact lookup is optional */
+  try {
+    const c = (await searchContactsSmart(client, query))[0];
+    if (c) {
+      contact = {
+        name: [c.first_name, c.last_name].filter(Boolean).join(" ") || c.email,
+        email: c.email,
+        phone: c.phone,
+        status: c.status,
+      };
     }
+  } catch {
+    /* contact lookup is optional */
   }
 
   // Invoice history
@@ -593,6 +658,8 @@ export const REGISTRY: Record<string, ToolDef> = {
   order_stats: { run: (c) => orderStats(c) },
   invoice_stats: { run: (c) => invoiceStats(c) },
   search_contacts: { run: (c, a) => searchContacts(c, a) },
+  list_contacts: { run: (c, a) => listContacts(c, a) },
+  payment_setup_status: { run: (c) => paymentSetupStatus(c) },
   list_campaigns: { run: (c) => listCampaigns(c) },
   donation_stats: { run: (c) => donationStats(c) },
   list_smart_forms: { run: (c) => listSmartForms(c) },

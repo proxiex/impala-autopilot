@@ -50,8 +50,33 @@
   header .logout { background: none; border: 1px solid var(--line); color: var(--muted);
     padding: 6px 12px; border-radius: 8px; font-size: 13px; }
 
+  .body-row { flex: 1; display: flex; overflow: hidden; }
+  .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
   .stream { flex: 1; overflow-y: auto; padding: 24px; }
   .wrap { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+
+  /* Stationary action menu */
+  .side { width: 280px; flex: none; border-left: 1px solid var(--line); overflow-y: auto;
+    padding: 18px 16px; background: rgba(255,255,255,.55); }
+  .side-title { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase;
+    letter-spacing: .05em; margin: 14px 0 8px; }
+  .side-title:first-child { margin-top: 0; }
+  .sideitem { display: block; width: 100%; text-align: left; background: var(--card);
+    border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; font-size: 13px;
+    color: var(--ink); margin-bottom: 6px; box-shadow: var(--shadow-sm); transition: all .15s ease; }
+  .sideitem:hover { border-color: var(--purple); color: var(--purple); transform: translateX(2px); }
+  .nextwrap { background: #efeafd; border: 1px solid #d5c9f6; border-radius: 12px; padding: 10px; margin-bottom: 8px; }
+  .nextwrap .side-title { color: var(--purple-d); margin: 2px 0 8px; }
+  .nextwrap .sideitem { border-color: #d5c9f6; }
+  @media (max-width: 920px) { .side { display: none; } }
+
+  /* Payment setup banner */
+  .paybanner { margin: 14px 24px 0; max-width: 760px; align-self: center; width: calc(100% - 48px);
+    background: var(--amber-bg); border: 1px solid #f0d18a; border-left: 4px solid #e8a93c;
+    border-radius: 12px; padding: 12px 40px 12px 16px; font-size: 13.5px; color: #6b4d12;
+    position: relative; box-shadow: var(--shadow-sm); }
+  .paybanner button { position: absolute; right: 10px; top: 10px; background: none; border: none;
+    color: #a3833d; font-size: 14px; }
 
   .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
   .chip { background: var(--card); border: 1px solid var(--line); color: var(--ink);
@@ -102,6 +127,12 @@
   .decline { background: #fff; border: 1px solid var(--line) !important; color: var(--muted); }
   .proposal.resolved .pactions { display: none; }
   .proposal.resolved { opacity: .7; }
+  .pform { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 14px; }
+  .prow { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
+  .prow span { flex: 0 0 160px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .prow input { flex: 1; border: 1px solid #eadfba; border-radius: 8px; padding: 8px 10px; font-size: 13.5px;
+    background: #fffdf5; }
+  .prow input:focus { outline: none; border-color: var(--amber); }
 
   .result { background: #ecfaf4; border: 1px solid #b9e8d4; border-radius: var(--radius);
     padding: 14px 16px; font-size: 14px; }
@@ -171,13 +202,24 @@
     <span class="who" id="who"></span>
     <button class="logout" id="logoutBtn">Sign out</button>
   </header>
-  <div class="stream"><div class="wrap" id="stream">
-    <div class="chips" id="chips"></div>
-  </div></div>
-  <footer><div class="composer">
-    <input id="input" placeholder="Message Autopilot…  e.g. invoice Ama for 2 bags of rice" autocomplete="off" />
-    <button class="btn send" id="sendBtn">Send</button>
-  </div></footer>
+  <div class="body-row">
+    <div class="main">
+      <div id="paybanner" class="paybanner hidden">
+        ⚠️ <b>This store can't receive online payments yet.</b> Invoices will send, but customers can't pay
+        until you set up payment collection (bank or mobile money) in your ImpalaFlow dashboard →
+        Invoicing → Payment settings.
+        <button id="paybannerClose" title="Dismiss">✕</button>
+      </div>
+      <div class="stream"><div class="wrap" id="stream">
+        <div class="chips" id="chips"></div>
+      </div></div>
+      <footer><div class="composer">
+        <input id="input" placeholder="Message Autopilot…  e.g. invoice Ama for 2 bags of rice" autocomplete="off" />
+        <button class="btn send" id="sendBtn">Send</button>
+      </div></footer>
+    </div>
+    <aside class="side" id="side"></aside>
+  </div>
 </section>
 
 <script>
@@ -202,7 +244,7 @@ const HINTS = [
   { group: "Business", items: ["How is my business doing this week?", "Any overdue invoices?"] },
   { group: "Catalog", items: ["What's in my catalog?", "Add products — paste your price list or CSV"] },
   { group: "Invoicing", items: ["Invoice Ama (ama.demo@gmail.com) for 2 Bag of Rice 25kg", "Chase my unpaid invoices"] },
-  { group: "Contacts", items: ["What's my history with Kwame?"] },
+  { group: "Contacts", items: ["Show my customers", "What's my history with Kwame?", "Add a new contact"] },
   { group: "Fundraising", items: ["How are my donation campaigns doing?"] },
   { group: "Forms", items: ["List my smart forms and their submissions"] },
 ];
@@ -212,6 +254,15 @@ async function api(path, body) {
     method: "POST",
     headers: { "Content-Type": "application/json", ...(token ? { Authorization: "Bearer " + token } : {}) },
     body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "HTTP " + res.status);
+  return data;
+}
+
+async function apiGet(path) {
+  const res = await fetch(API_BASE + path, {
+    headers: token ? { Authorization: "Bearer " + token } : {},
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || "HTTP " + res.status);
@@ -261,7 +312,8 @@ function addBubble(who, text) {
     };
     let sugWrap = null;
     for (const line of lines) {
-      const m = line.match(/^[ \t]*[-•]\s+(.+)$/);
+      // Only "-> " lines are actionable suggestions (tappable); "-" bullets are facts.
+      const m = line.match(/^[ \t]*(?:->|→)\s+(.+)$/);
       if (m) {
         flush();
         if (!sugWrap) {
@@ -305,22 +357,77 @@ function addProposal(p) {
   const card = document.createElement("div");
   card.className = "proposal";
   card.innerHTML = `<div class="ptitle">✋ Approval needed</div><pre>${esc(p.preview)}</pre>`;
+  const editWrap = document.createElement("div");
+  editWrap.className = "pform hidden";
+  card.appendChild(editWrap);
+
   const actions = document.createElement("div");
   actions.className = "pactions";
   const approve = document.createElement("button");
   approve.className = "approve"; approve.textContent = "Approve & run";
+  const edit = document.createElement("button");
+  edit.className = "decline"; edit.textContent = "Edit";
   const decline = document.createElement("button");
   decline.className = "decline"; decline.textContent = "Decline";
+
+  const editable = p.tool === "create_invoice";
+  let editing = false;
+  const fields = { qty: [], name: null, email: null, note: null };
+
+  function buildEditor() {
+    const a = p.args || {};
+    editWrap.innerHTML = "";
+    const row = (label, input) => {
+      const r = document.createElement("label");
+      r.className = "prow";
+      r.append(Object.assign(document.createElement("span"), { textContent: label }), input);
+      editWrap.appendChild(r);
+    };
+    fields.name = Object.assign(document.createElement("input"), { value: a.customer_name || "" });
+    fields.email = Object.assign(document.createElement("input"), { value: a.customer_email || "" });
+    row("Customer", fields.name);
+    row("Email", fields.email);
+    fields.qty = (a.items || []).map((it) => {
+      const q = Object.assign(document.createElement("input"), { type: "number", min: "1", value: it.quantity });
+      row(`${it.name} — qty`, q);
+      return q;
+    });
+    fields.note = Object.assign(document.createElement("input"), { value: a.note || "", placeholder: "Note (optional)" });
+    row("Note", fields.note);
+  }
+
+  function collectArgs() {
+    const a = JSON.parse(JSON.stringify(p.args || {}));
+    a.customer_name = fields.name.value.trim() || a.customer_name;
+    a.customer_email = fields.email.value.trim() || a.customer_email;
+    (a.items || []).forEach((it, i) => { it.quantity = Number(fields.qty[i]?.value) || it.quantity; });
+    if (fields.note.value.trim()) a.note = fields.note.value.trim();
+    return a;
+  }
+
   approve.onclick = async () => {
+    const args = editing ? collectArgs() : p.args;
     card.classList.add("resolved");
     const th = addThinking();
     try {
-      const data = await api("/agent/approve", { proposal: { tool: p.tool, args: p.args } });
+      const data = await api("/agent/approve", { proposal: { tool: p.tool, args } });
       th.remove(); renderResult(data.result);
     } catch (e) { th.remove(); addBubble("bot", "⚠ " + e.message); }
   };
+  edit.onclick = () => {
+    editing = !editing;
+    if (editing && !editWrap.childElementCount) buildEditor();
+    editWrap.classList.toggle("hidden", !editing);
+    card.querySelector("pre").classList.toggle("hidden", editing);
+    edit.textContent = editing ? "Back to preview" : "Edit";
+    approve.textContent = editing ? "Approve edited" : "Approve & run";
+  };
   decline.onclick = () => { card.classList.add("resolved"); addBubble("bot", "Okay — I won't do that."); };
-  actions.append(approve, decline); card.appendChild(actions);
+
+  actions.append(approve);
+  if (editable) actions.append(edit);
+  actions.append(decline);
+  card.appendChild(actions);
   $("stream").appendChild(card); scroll();
 }
 
@@ -331,12 +438,15 @@ function renderResult(r) {
     div.innerHTML = `✅ Invoice <b>${esc(r.invoice_number || "")}</b> — ${esc(r.currency || "")} ${esc(r.total)}` +
       ` · status <b>${esc(r.status)}</b>` + (r.sent ? " · sent to customer" : "") +
       `<br><a href="${esc(r.pay_link)}" target="_blank" rel="noopener">Open pay link →</a>`;
+    setNextActions(["Show my unpaid invoices", "How is my business doing?"]);
   } else if (r && r.contact) {
     div.innerHTML = `✅ Contact added: <b>${esc(r.contact.name)}</b>` +
       ` — ${esc(r.contact.email)}${r.contact.phone ? " · " + esc(r.contact.phone) : ""}`;
+    setNextActions([`What's my history with ${r.contact.name}?`, "Show my customers"]);
   } else if (r && r.created_count !== undefined) {
     div.innerHTML = `✅ Created <b>${esc(r.created_count)}</b> products` +
       (r.failed && r.failed.length ? ` · ${r.failed.length} failed` : "");
+    setNextActions(["Show my catalog", "Which items are low on stock?"]);
   } else if (r && r.declined === undefined && r.ok !== undefined) {
     div.textContent = r.ok ? "✅ Done." : "⚠ Something went wrong.";
   } else {
@@ -435,7 +545,15 @@ async function login() {
     $("login").classList.add("hidden");
     $("chat").classList.remove("hidden");
     renderHints();
+    buildSideMenu();
     $("input").focus();
+    // Payment-readiness check: warn new stores that pay links can't accept
+    // money until payment collection is configured.
+    apiGet("/merchant/context").then(ctx => {
+      if (ctx && ctx.payment_ready === false) {
+        $("paybanner").classList.remove("hidden");
+      }
+    }).catch(() => {});
   } catch (e) {
     $("loginErr").textContent = e.message;
   } finally {
@@ -444,6 +562,37 @@ async function login() {
 }
 
 const GROUP_ICONS = { Business: "📊", Catalog: "📦", Invoicing: "🧾", Contacts: "👥", Fundraising: "💜", Forms: "📝" };
+
+function buildSideMenu() {
+  const side = $("side");
+  side.innerHTML = `<div class="nextwrap hidden" id="nextwrap"><div class="side-title">✨ Suggested next</div><div id="nextItems"></div></div>`;
+  HINTS.forEach(h => {
+    const t = document.createElement("div");
+    t.className = "side-title";
+    t.textContent = `${GROUP_ICONS[h.group] ?? ""} ${h.group}`;
+    side.appendChild(t);
+    h.items.forEach(s => {
+      const b = document.createElement("button");
+      b.className = "sideitem"; b.textContent = s;
+      b.onclick = () => send(s);
+      side.appendChild(b);
+    });
+  });
+}
+
+function setNextActions(labels) {
+  const wrap = document.getElementById("nextwrap");
+  const items = document.getElementById("nextItems");
+  if (!wrap || !items) return;
+  items.innerHTML = "";
+  labels.filter(Boolean).forEach(s => {
+    const b = document.createElement("button");
+    b.className = "sideitem"; b.textContent = s;
+    b.onclick = () => send(s);
+    items.appendChild(b);
+  });
+  wrap.classList.toggle("hidden", labels.length === 0);
+}
 
 function renderHints() {
   const c = $("chips");
@@ -480,6 +629,7 @@ $("password").addEventListener("keydown", e => { if (e.key === "Enter") login();
 $("sendBtn").onclick = () => send();
 $("input").addEventListener("keydown", e => { if (e.key === "Enter") send(); });
 $("logoutBtn").onclick = logout;
+$("paybannerClose").onclick = () => $("paybanner").classList.add("hidden");
 </script>
 </body>
 </html>
