@@ -75,7 +75,7 @@ sugar 1kg,18, 40 left
 **Screen:** the architecture diagram (docs/architecture.svg, full screen ~8s), then a terminal running `npm run mcp` output / the tools list.
 
 **Narrate:**
-> "Under the hood: a Qwen-max function-calling loop on Alibaba Cloud Function Compute, driving the same REST API our dashboard uses — twelve tools across catalog, invoicing, donations, contacts, and forms. Every action goes through a propose-and-approve gate, and a grounding layer validates every price against the live catalog. The whole toolset is also exposed as an MCP server — Claude Desktop can run this store."
+> "Under the hood: a Qwen-max function-calling loop on Alibaba Cloud Function Compute, driving the same REST API our dashboard uses — fifteen tools across catalog, invoicing, payments, donations, contacts, and forms. Every action goes through a propose-and-approve gate, and a grounding layer validates every price against the live catalog. The whole toolset is also exposed as an MCP server — Claude Desktop can run this store."
 
 ## Scene 6 — Close (2:40–3:00)
 

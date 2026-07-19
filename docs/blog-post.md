@@ -18,7 +18,7 @@ That decision shaped everything: the agent isn't a demo of what commerce automat
 
 ## Architecture in one breath
 
-A Node/TypeScript service wraps a **qwen-max function-calling loop** over twelve business tools. It runs on **Alibaba Cloud Function Compute** (Singapore), calls Qwen through **Model Studio (DashScope)** via the OpenAI-compatible endpoint, and talks to ImpalaFlow in **multi-tenant token mode** — the service stores no credentials; every request acts as the merchant who made it. The dashboard is a single static page served by the same service; the whole toolset is also exposed as an **MCP server**, so Claude Desktop can literally operate a store.
+A Node/TypeScript service wraps a **qwen-max function-calling loop** over fifteen business tools. It runs on **Alibaba Cloud Function Compute** (Singapore), calls Qwen through **Model Studio (DashScope)** via the OpenAI-compatible endpoint, and talks to ImpalaFlow in **multi-tenant token mode** — the service stores no credentials; every request acts as the merchant who made it. The dashboard is a single static page served by the same service; the whole toolset is also exposed as an **MCP server**, so Claude Desktop can literally operate a store.
 
 ## The three lessons worth stealing
 

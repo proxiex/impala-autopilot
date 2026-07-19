@@ -27,7 +27,7 @@ Things to ask it:
 
 ![Architecture](docs/architecture.svg)
 
-- **Agent service** (this repo, Node + TypeScript): a Qwen function-calling loop over 12 business tools, an approval gate, a deterministic grounding layer, and customer memory. Runs on **Alibaba Cloud Function Compute** (Singapore).
+- **Agent service** (this repo, Node + TypeScript): a Qwen function-calling loop over 15 business tools, an approval gate, a deterministic grounding layer, and customer memory. Runs on **Alibaba Cloud Function Compute** (Singapore).
 - **Models**: **Qwen via Alibaba Cloud Model Studio (DashScope)** — see [`src/llm/client.ts`](src/llm/client.ts) (*proof of Alibaba Cloud usage: every model call goes through DashScope*).
 - **The business layer is real**: the agent drives the same REST API the ImpalaFlow dashboard uses — products, orders, invoicing, donations, contacts, forms — with **zero backend changes**. Payments settle through Paystack.
 
@@ -47,7 +47,7 @@ Things to ask it:
 3. **Multi-tenant token mode.** The service holds no merchant credentials. Every request carries the merchant's own short-lived token; the agent acts *as that merchant*, and tenant isolation is enforced by the platform's existing auth.
 4. **Memory grounded in business data.** "What's my history with Ada?" is answered from live contacts, invoices, and orders — recall that is always true, with no separate store to drift out of sync.
 5. **Channel-aware output.** The same agent returns render-ready JSON blocks (product cards, stat tiles, lists) to the dashboard, and clean prose to text channels.
-6. **MCP server.** `npm run mcp` exposes all 12 tools over the Model Context Protocol — Claude Desktop or any MCP client can operate an ImpalaFlow store (with the client's own per-call approval prompts keeping the human in the loop).
+6. **MCP server.** `npm run mcp` exposes all 15 tools over the Model Context Protocol — Claude Desktop or any MCP client can operate an ImpalaFlow store (with the client's own per-call approval prompts keeping the human in the loop).
 
 ## Run it yourself
 
@@ -66,7 +66,7 @@ Other entry points:
 ```bash
 npm run chat           # interactive CLI (y/N approval prompts)
 npm run chat -- "how much stock of rice do I have?"
-npm run mcp            # MCP server over stdio (12 tools)
+npm run mcp            # MCP server over stdio (15 tools)
 npm run seed           # seed sample products into the tenant
 npm run typecheck
 ```

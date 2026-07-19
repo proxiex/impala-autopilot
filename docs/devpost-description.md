@@ -25,11 +25,11 @@ ImpalaFlow is a live commerce platform for entrepreneurs across Africa. Our merc
 - **Remembers every customer**: past invoices, orders, total paid, balance owed — memory grounded in live business data.
 - **Onboards a catalog from one paste**: any messy price list or CSV becomes structured products behind a single approval card.
 - **Answers "how is my business doing?"** across sales, invoicing, and donations with rich dashboard cards.
-- **Works from any MCP client**: all 12 tools are exposed over the Model Context Protocol.
+- **Works from any MCP client**: all 15 tools are exposed over the Model Context Protocol.
 
 ## How we built it
 
-A Node + TypeScript service wraps a **qwen-max function-calling loop** (via Alibaba Cloud Model Studio / DashScope, OpenAI-compatible) over 12 tools that drive ImpalaFlow's existing REST API — the same API our production dashboard uses, with zero backend changes. It runs on **Alibaba Cloud Function Compute** (Singapore) as a custom container, serving both the JSON agent API and a self-contained web dashboard. Multi-tenant by construction: the service stores no credentials; each request carries the merchant's own token. Model routing is configurable (qwen-max for orchestration, qwen-plus for dev, qwen-turbo for high-volume classification).
+A Node + TypeScript service wraps a **qwen-max function-calling loop** (via Alibaba Cloud Model Studio / DashScope, OpenAI-compatible) over 15 tools that drive ImpalaFlow's existing REST API — the same API our production dashboard uses, with zero backend changes. It runs on **Alibaba Cloud Function Compute** (Singapore) as a custom container, serving both the JSON agent API and a self-contained web dashboard. Multi-tenant by construction: the service stores no credentials; each request carries the merchant's own token. Model routing is configurable (qwen-max for orchestration, qwen-plus for dev, qwen-turbo for high-volume classification).
 
 ## Challenges we ran into
 
