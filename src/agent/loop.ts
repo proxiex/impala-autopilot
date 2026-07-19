@@ -108,7 +108,9 @@ export async function runAgent(
       messages.push({
         role: "tool",
         tool_call_id: tc.id,
-        content: JSON.stringify(result),
+        // The UI renders media from `invocations`; the model never sees image
+        // URLs, so it can never paste them into a reply.
+        content: JSON.stringify(sanitizeForModel(result)),
       });
     }
   }
@@ -118,6 +120,20 @@ export async function runAgent(
     messages,
     invocations,
   };
+}
+
+/** Strip media fields from tool results before they reach the model. */
+function sanitizeForModel(v: unknown): unknown {
+  if (Array.isArray(v)) return v.map(sanitizeForModel);
+  if (v && typeof v === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, val] of Object.entries(v)) {
+      if (k === "image_url" || k === "gallery_images" || k === "cover_image_url") continue;
+      out[k] = sanitizeForModel(val);
+    }
+    return out;
+  }
+  return v;
 }
 
 async function executeTool(
