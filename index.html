@@ -292,6 +292,15 @@ function hintButton(item, className) {
   return b;
 }
 
+const STORAGE_KEY = "autopilot_session";
+
+function handleAuthFailure(status) {
+  if (status === 401 && token) {
+    logout();
+    throw new Error("Your session expired — please sign in again.");
+  }
+}
+
 async function api(path, body) {
   const res = await fetch(API_BASE + path, {
     method: "POST",
@@ -299,7 +308,10 @@ async function api(path, body) {
     body: JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || "HTTP " + res.status);
+  if (!res.ok) {
+    if (path !== "/auth/login") handleAuthFailure(res.status);
+    throw new Error(data.error || "HTTP " + res.status);
+  }
   return data;
 }
 
@@ -308,7 +320,7 @@ async function apiGet(path) {
     headers: token ? { Authorization: "Bearer " + token } : {},
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || "HTTP " + res.status);
+  if (!res.ok) { handleAuthFailure(res.status); throw new Error(data.error || "HTTP " + res.status); }
   return data;
 }
 
@@ -576,6 +588,23 @@ async function send(text) {
   }
 }
 
+function enterChat(who) {
+  $("who").textContent = who || "Merchant";
+  $("login").classList.add("hidden");
+  $("chat").classList.remove("hidden");
+  renderHints();
+  buildSideMenu();
+  $("input").focus();
+  // Payment-readiness check: warn new stores that pay links can't accept
+  // money until payment collection is configured. Also validates a restored
+  // session — a stale token drops back to the login screen via the 401 path.
+  apiGet("/merchant/context").then(ctx => {
+    if (ctx && ctx.payment_ready === false) {
+      $("paybanner").classList.remove("hidden");
+    }
+  }).catch(() => {});
+}
+
 async function login() {
   const email = $("email").value.trim();
   const password = $("password").value;
@@ -584,25 +613,18 @@ async function login() {
   try {
     const data = await api("/auth/login", { email, password });
     token = data.access_token;
-    $("who").textContent = (data.company_name || data.first_name || data.email || "Merchant");
-    $("login").classList.add("hidden");
-    $("chat").classList.remove("hidden");
-    renderHints();
-    buildSideMenu();
-    $("input").focus();
-    // Payment-readiness check: warn new stores that pay links can't accept
-    // money until payment collection is configured.
-    apiGet("/merchant/context").then(ctx => {
-      if (ctx && ctx.payment_ready === false) {
-        $("paybanner").classList.remove("hidden");
-      }
-    }).catch(() => {});
+    const who = data.company_name || data.first_name || data.email || "Merchant";
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ token, who }));
+    } catch { /* private mode etc. */ }
+    enterChat(who);
   } catch (e) {
     $("loginErr").textContent = e.message;
   } finally {
     $("loginBtn").disabled = false;
   }
 }
+
 
 const GROUP_ICONS = { Business: "📊", Catalog: "📦", Invoicing: "🧾", Contacts: "👥", Fundraising: "💜", Forms: "📝" };
 
@@ -646,6 +668,7 @@ function renderHints() {
 }
 
 function logout() {
+  try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
   token = null; history = [];
   $("stream").innerHTML = '<div class="chips" id="chips"></div>';
   $("chat").classList.add("hidden");
@@ -658,6 +681,15 @@ $("sendBtn").onclick = () => send();
 $("input").addEventListener("keydown", e => { if (e.key === "Enter") send(); });
 $("logoutBtn").onclick = logout;
 $("paybannerClose").onclick = () => $("paybanner").classList.add("hidden");
+
+// Restore a persisted session on page load (placed last: everything is defined).
+try {
+  const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+  if (saved && saved.token) {
+    token = saved.token;
+    enterChat(saved.who);
+  }
+} catch { /* ignore corrupt storage */ }
 </script>
 </body>
 </html>
