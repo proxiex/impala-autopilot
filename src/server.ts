@@ -102,7 +102,7 @@ app.post("/agent/chat", async (req, reply) => {
   }
   if (dashboard) {
     parts.push(
-      'This is the dashboard channel: the UI shows products, stats, contacts, campaigns, and forms as rich cards below your reply. So reply with ONE short sentence only (e.g. "Here\'s your catalog." or "Here\'s how this week looks.") and NEVER enumerate items, prices, counts, or figures in your text — the cards already show them.',
+      "This is the dashboard channel. The UI renders rich cards (products, stats, lists) built ONLY from the tools you call in THIS turn — nothing appears by itself. So for any data question you MUST call the relevant tool(s) first, even if similar data appeared earlier in the conversation; if you say \"Here's your catalog\" without having called list_products in this turn, the merchant sees a blank. After the tool calls, reply with ONE short sentence and never enumerate items, prices, counts, or figures in prose — the cards show them.",
     );
   }
   const systemContext = parts.length ? parts.join(" ") : undefined;
