@@ -400,9 +400,47 @@ export interface SendReminderArgs {
   invoice_id: string;
   customer_email: string;
   invoice_number?: string;
+  customer_name?: string;
 }
 
 /** Email a payment reminder for an existing invoice. Approval-gated. */
+/**
+ * Grounding for reminders: never trust a model-supplied email. Fetch the
+ * invoice and use the customer email on record; unknown ids bounce back.
+ */
+export async function groundReminderArgs(
+  client: ImpalaFlowClient,
+  args: SendReminderArgs,
+): Promise<{ ok: true; args: SendReminderArgs } | { ok: false; error: string }> {
+  if (!args.invoice_id) {
+    return { ok: false, error: "invoice_id is required — use list_unpaid_invoices to get it." };
+  }
+  let inv: any;
+  try {
+    inv = await client.get(
+      `/api/private/tenants/invoicing/invoices/${args.invoice_id}`,
+    );
+  } catch {
+    return {
+      ok: false,
+      error: `Invoice ${args.invoice_id} was not found — use list_unpaid_invoices for valid invoice ids.`,
+    };
+  }
+  const email = inv?.customer_email || inv?.client_email;
+  if (!email) {
+    return { ok: false, error: "That invoice has no customer email on record, so a reminder cannot be sent." };
+  }
+  return {
+    ok: true,
+    args: {
+      invoice_id: args.invoice_id,
+      customer_email: email,
+      invoice_number: inv?.invoice_number ?? args.invoice_number,
+      customer_name: inv?.customer_name ?? undefined,
+    },
+  };
+}
+
 export async function sendInvoiceReminder(
   client: ImpalaFlowClient,
   args: SendReminderArgs,
@@ -684,8 +722,9 @@ export const REGISTRY: Record<string, ToolDef> = {
   send_invoice_reminder: {
     run: (c, a) => sendInvoiceReminder(c, a),
     requiresApproval: true,
+    ground: (c, a) => groundReminderArgs(c, a),
     preview: (a) =>
-      `PAYMENT REMINDER → ${a.customer_email}` +
-      (a.invoice_number ? ` for invoice ${a.invoice_number}` : ""),
+      `PAYMENT REMINDER → ${a.customer_name ? a.customer_name + " " : ""}<${a.customer_email}>` +
+      (a.invoice_number ? `\n  for invoice ${a.invoice_number}` : ""),
   },
 };
